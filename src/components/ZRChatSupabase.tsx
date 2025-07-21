@@ -11,7 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { validateMessage, sanitizeMessage, validateFileUpload, sanitizeFilename } from '@/utils/inputValidation';
 import ChatHeader from './ChatHeader';
 
-export default function ZRChatSupabase() {
+const ZRChatSupabase = () => {
   const { user, profile, signOut } = useAuth();
   const [messages, setMessages] = useState([]);
   const [conversations, setConversations] = useState([]);
@@ -795,4 +795,6 @@ export default function ZRChatSupabase() {
       </main>
     </div>
   );
-}
+};
+
+export default ZRChatSupabase;
