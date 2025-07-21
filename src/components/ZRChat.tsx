@@ -43,6 +43,7 @@ export default function ZRChat() {
   const videoInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -102,12 +103,42 @@ export default function ZRChat() {
       if (isMobile) {
         setShowSidebar(false);
       }
+      
+      // Setup auto-refresh timer for the selected conversation
+      startAutoRefresh();
+    } else {
+      // Clear timer when no conversation is selected
+      stopAutoRefresh();
     }
+
+    return () => {
+      stopAutoRefresh();
+    };
   }, [selectedConversation, isMobile]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  const startAutoRefresh = () => {
+    // Clear any existing timer
+    stopAutoRefresh();
+    
+    // Only start auto-refresh for non-IARA conversations and when online
+    if (selectedConversation && !selectedConversation.isIARA && isOnline && supabaseConnected) {
+      refreshTimerRef.current = setInterval(() => {
+        // Silently refresh messages without showing toast
+        loadMessages(selectedConversation.id);
+      }, 30000); // 30 seconds
+    }
+  };
+
+  const stopAutoRefresh = () => {
+    if (refreshTimerRef.current) {
+      clearInterval(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+    }
+  };
 
   const loadConversations = async () => {
     try {
