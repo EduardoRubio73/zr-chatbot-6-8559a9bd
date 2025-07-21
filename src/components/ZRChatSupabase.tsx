@@ -1,15 +1,15 @@
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Moon, Sun, Send, Smile, Paperclip, Phone, Video, MoreVertical, Search, ArrowLeft, Menu, User, LogOut, Check, CheckCheck } from "lucide-react";
+import { Moon, Sun, Send, Smile, Paperclip, MoreVertical, Search, ArrowLeft, Menu, User, LogOut, Check, CheckCheck } from "lucide-react";
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { validateMessage, sanitizeMessage, validateFileUpload, sanitizeFilename } from '@/utils/inputValidation';
+import ChatHeader from './ChatHeader';
 
 export default function ZRChatSupabase() {
   const { user, profile, signOut } = useAuth();
@@ -24,6 +24,7 @@ export default function ZRChatSupabase() {
   const [messageError, setMessageError] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState(new Set());
+  const [isRecording, setIsRecording] = useState(false);
   
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -238,6 +239,42 @@ export default function ZRChatSupabase() {
       supabase.removeChannel(presenceChannel);
     };
   }, [user?.id]);
+
+  const handleRefreshConversation = useCallback(async () => {
+    if (!selectedConversation) {
+      toast({
+        title: "Erro",
+        description: "Nenhuma conversa selecionada para atualizar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      console.log('Atualizando conversa:', selectedConversation.id);
+      
+      toast({
+        title: "Atualizando...",
+        description: "Carregando mensagens mais recentes.",
+      });
+
+      // Recarregar as mensagens da conversa atual
+      await loadMessages(selectedConversation.id);
+      
+      toast({
+        title: "Sucesso",
+        description: "Conversa atualizada com sucesso!",
+      });
+      
+    } catch (error) {
+      console.error('Erro ao atualizar conversa:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível atualizar a conversa.",
+        variant: "destructive",
+      });
+    }
+  }, [selectedConversation, toast]);
 
   const getOrCreateConversation = async (otherUserId: string) => {
     try {
@@ -648,40 +685,18 @@ export default function ZRChatSupabase() {
       <main className="flex-1 flex flex-col bg-transparent max-w-[600px] mx-auto">
         {selectedConversation && (
           <>
-            <header className="p-4 border-b border-border bg-background/90 backdrop-blur-sm">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <Button variant="ghost" size="icon" className="md:hidden">
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
-                  
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={selectedConversation.avatar} alt={selectedConversation.name} />
-                    <AvatarFallback>{selectedConversation.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                  </Avatar>
-                  
-                  <div>
-                    <h2 className="font-semibold text-foreground">{selectedConversation.name}</h2>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedConversation.isOnline ? 'online' : 
-                       isTyping ? 'digitando...' : 'última vez hoje às 14:30'}
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="icon" title="Chamada de voz">
-                    <Phone className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" title="Chamada de vídeo">
-                    <Video className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" title="Menu">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </header>
+            <ChatHeader
+              selectedConversation={selectedConversation}
+              isMobile={false}
+              onBackToList={() => setSelectedConversation(null)}
+              onAvatarClick={(conv) => console.log('Avatar clicked:', conv)}
+              onCall={(type) => console.log('Call:', type)}
+              onArchiveConversation={(id) => console.log('Archive:', id)}
+              onDeleteConversation={(id) => console.log('Delete:', id)}
+              isRecording={isRecording}
+              onVideoRecording={() => setIsRecording(!isRecording)}
+              onRefreshConversation={handleRefreshConversation}
+            />
 
             <section 
               className={`flex-1 overflow-y-auto p-4 chat-body ${

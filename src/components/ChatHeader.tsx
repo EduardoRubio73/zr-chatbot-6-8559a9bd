@@ -1,6 +1,8 @@
+
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Phone, Video, ArrowLeft, Archive, Trash2 } from "lucide-react";
+import { Phone, Video, ArrowLeft, Archive, Trash2, RefreshCw } from "lucide-react";
+
 interface ChatHeaderProps {
   selectedConversation: any;
   isMobile: boolean;
@@ -11,7 +13,9 @@ interface ChatHeaderProps {
   onDeleteConversation: (id: string) => void;
   isRecording: boolean;
   onVideoRecording: () => void;
+  onRefreshConversation: () => void;
 }
+
 export default function ChatHeader({
   selectedConversation,
   isMobile,
@@ -21,15 +25,20 @@ export default function ChatHeader({
   onArchiveConversation,
   onDeleteConversation,
   isRecording,
-  onVideoRecording
+  onVideoRecording,
+  onRefreshConversation
 }: ChatHeaderProps) {
   if (!selectedConversation) return null;
-  return <header className="p-4 border-b border-border bg-background/80 backdrop-blur-sm">
+
+  return (
+    <header className="p-4 border-b border-border bg-background/80 backdrop-blur-sm">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-3">
-          {isMobile && <Button variant="ghost" size="icon" onClick={onBackToList}>
+          {isMobile && (
+            <Button variant="ghost" size="icon" onClick={onBackToList}>
               <ArrowLeft className="h-4 w-4" />
-            </Button>}
+            </Button>
+          )}
           
           <Avatar className="h-10 w-10 cursor-pointer" onClick={() => onAvatarClick(selectedConversation)}>
             <AvatarImage src={selectedConversation.avatar} alt={selectedConversation.name} />
@@ -48,6 +57,9 @@ export default function ChatHeader({
         </div>
         
         <div className="flex gap-2">
+          <Button variant="ghost" size="icon" title="Atualizar conversa" onClick={onRefreshConversation}>
+            <RefreshCw className="h-4 w-4" />
+          </Button>
           <Button variant="ghost" size="icon" title="Chamada de voz" onClick={() => onCall('voice')}>
             <Phone className="h-4 w-4" />
           </Button>
@@ -62,5 +74,6 @@ export default function ChatHeader({
           </Button>
         </div>
       </div>
-    </header>;
+    </header>
+  );
 }
