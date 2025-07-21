@@ -1,9 +1,10 @@
-
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Moon, Sun, User, LogOut, MoreVertical, Search, ArrowLeft, Archive, Wifi, WifiOff } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { useNavigate } from "react-router-dom";
 
 interface ChatSidebarProps {
   darkMode: boolean;
@@ -50,12 +51,24 @@ export default function ChatSidebar({
   isMobile,
   showSidebar
 }: ChatSidebarProps) {
+  const { signOut } = useAuth();
+  const navigate = useNavigate();
+
   const filteredConversations = (showArchivedConversations ? archivedConversations : conversations).filter(conv =>
     conv.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleArchivedConversationsClick = () => {
     setShowArchivedConversations(!showArchivedConversations);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate('/login');
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+    }
   };
 
   // Don't render the sidebar if it shouldn't be shown
@@ -113,7 +126,7 @@ export default function ChatSidebar({
             <Button 
               variant="ghost" 
               size="icon" 
-              onClick={onLogout}
+              onClick={handleLogout}
               title="Sair"
             >
               <LogOut className="h-4 w-4" />
