@@ -1079,6 +1079,18 @@ export default function ZRChat() {
     'Símbolos': ['💯', '🔥', '✨', '⭐', '🌟', '💫', '⚡', '💥', '💢', '💨', '💦', '💤', '🎉', '🎊', '🎈', '🎁', '🏆', '🥇', '🥈', '🥉']
   };
 
+  const handleRefreshConversation = () => {
+    if (!selectedConversation) return;
+    
+    toast({
+      title: "Atualizando conversa",
+      description: "Carregando mensagens mais recentes...",
+    });
+    
+    // Reload messages for current conversation
+    loadMessages(selectedConversation.id);
+  };
+
   if (!user) {
     return null;
   }
@@ -1187,6 +1199,7 @@ export default function ZRChat() {
               onDeleteConversation={handleDeleteConversation}
               isRecording={isRecording}
               onVideoRecording={isRecording ? stopVideoRecording : startVideoRecording}
+              onRefreshConversation={handleRefreshConversation}
             />
 
             {/* Messages Area */}
