@@ -1,0 +1,66 @@
+
+{
+  "name": "ZRChat - Mensagens Instantâneas",
+  "short_name": "ZRChat",
+  "description": "Sistema de chat inteligente para comunicação empresarial e pessoal",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#25D366",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "categories": ["business", "productivity", "communication", "social"],
+  "screenshots": [
+    {
+      "src": "https://bwplxdikxtnsoavmijpi.supabase.co/storage/v1/object/public/chat-imagens/screenshot-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "ZRChat - Tela Principal"
+    },
+    {
+      "src": "https://bwplxdikxtnsoavmijpi.supabase.co/storage/v1/object/public/chat-imagens/screenshot-narrow.png",
+      "sizes": "720x1280",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "ZRChat - Interface Mobile"
+    }
+  ],
+  "icons": [
+    {
+      "src": "https://bwplxdikxtnsoavmijpi.supabase.co/storage/v1/object/public/chat-imagens/whatsapp.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://bwplxdikxtnsoavmijpi.supabase.co/storage/v1/object/public/chat-imagens/whatsapp.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://bwplxdikxtnsoavmijpi.supabase.co/storage/v1/object/public/chat-imagens/whatsapp.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nova Conversa",
+      "short_name": "Nova",
+      "description": "Iniciar uma nova conversa",
+      "url": "/chat?action=new",
+      "icons": [
+        {
+          "src": "https://bwplxdikxtnsoavmijpi.supabase.co/storage/v1/object/public/chat-imagens/whatsapp.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ],
+  "prefer_related_applications": false
+}

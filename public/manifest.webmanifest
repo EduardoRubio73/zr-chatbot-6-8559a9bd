@@ -1,0 +1,22 @@
+
+{
+  "name": "ZRChat",
+  "short_name": "ZRChat",
+  "description": "ZRChat é um app de mensagens leve e acessível como PWA.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#25D366",
+  "icons": [
+    {
+      "src": "https://bwplxdikxtnsoavmijpi.supabase.co/storage/v1/object/public/chat-imagens//whatsapp.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://bwplxdikxtnsoavmijpi.supabase.co/storage/v1/object/public/chat-imagens//whatsapp.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
