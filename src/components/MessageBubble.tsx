@@ -18,7 +18,7 @@ import {
 interface MessageBubbleProps {
   message: {
     id: string;
-    text: string;
+    message: string;
     sent_at: string;
     is_read: boolean;
     sender: string;
@@ -154,8 +154,8 @@ export function MessageBubble({ message, onMessageDeleted, onReply }: MessageBub
             isMine ? "bg-[#DCF8C6] balao-sent" : "bg-white balao-received"
           }`}
         >
-          {message.text && (
-            <p className="message-text whitespace-pre-wrap break-words">{message.text}</p>
+          {message.message && (
+            <p className="message-text whitespace-pre-wrap break-words">{message.message}</p>
           )}
           {message.image_url && (
             <img 

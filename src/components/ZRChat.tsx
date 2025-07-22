@@ -1106,7 +1106,7 @@ export default function ZRChat() {
               <div className="py-4 flex flex-col gap-2">
                 {messages.map(msg => <MessageBubble key={msg.id} message={{
               id: msg.id,
-              text: msg.text,
+              message: msg.text,
               sent_at: msg.sent_at || msg.timestamp,
               is_read: msg.read || msg.is_read,
               sender: msg.sender,

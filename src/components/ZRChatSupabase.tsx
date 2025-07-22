@@ -145,14 +145,14 @@ export default function ZRChatSupabase() {
       const mockMessages = [
         {
           id: 1,
-          text: "Olá! Como você está?",
+          message: "Olá! Como você está?",
           sender: "other",
           created_at: new Date(Date.now() - 300000).toISOString(),
           isRead: true
         },
         {
           id: 2,
-          text: "Oi! Estou bem, obrigado! E você?",
+          message: "Oi! Estou bem, obrigado! E você?",
           sender: "me",
           created_at: new Date(Date.now() - 120000).toISOString(),
           isRead: true
@@ -342,7 +342,7 @@ export default function ZRChatSupabase() {
     const sanitizedMessage = sanitizeMessage(newMessage);
     
     // Adicionar mensagem otimista imediatamente
-    const tempId = addOptimisticMessage({ text: sanitizedMessage });
+    const tempId = addOptimisticMessage({ message: sanitizedMessage });
     
     // Limpar input imediatamente
     setNewMessage("");
@@ -364,7 +364,7 @@ export default function ZRChatSupabase() {
         .insert({
           conversation_id: conversationId,
           sender_id: user.id,
-          text: sanitizedMessage
+          message: sanitizedMessage
         })
         .select()
         .single();
@@ -374,7 +374,7 @@ export default function ZRChatSupabase() {
       // Atualizar mensagem otimista com dados reais
       updateOptimisticMessage(tempId, {
         id: message.id,
-        text: sanitizedMessage,
+        message: sanitizedMessage,
         created_at: message.sent_at,
         isRead: false
       });
@@ -417,7 +417,7 @@ export default function ZRChatSupabase() {
 
     // Adicionar mensagem otimista para mídia
     const tempId = addOptimisticMessage({ 
-      text: `[${type.toUpperCase()}]`,
+      message: `[${type.toUpperCase()}]`,
       [`${type}_url`]: URL.createObjectURL(file)
     });
 
@@ -461,7 +461,7 @@ export default function ZRChatSupabase() {
       // Atualizar mensagem otimista com dados reais
       updateOptimisticMessage(tempId, {
         id: message.id,
-        text: `[${type.toUpperCase()}]`,
+        message: `[${type.toUpperCase()}]`,
         created_at: message.sent_at,
         isRead: false,
         [`${type}_url`]: urlData.publicUrl
@@ -528,6 +528,119 @@ export default function ZRChatSupabase() {
       setIsTyping(false);
     }, 1000);
   };
+
+  const handleArchiveConversation = useCallback(async (conversationId: string) => {
+    try {
+      // Buscar a conversa real no banco de dados
+      const { data: conversation, error: findError } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('id', conversationId)
+        .single();
+
+      if (findError) {
+        console.log('Conversa não encontrada no banco, criando uma nova...');
+        // Se a conversa não existe, criar uma nova e arquivar
+        const { data: newConversation, error: createError } = await supabase
+          .from('conversations')
+          .insert({ 
+            is_group: false,
+            status: false // Criar já arquivada
+          })
+          .select()
+          .single();
+
+        if (createError) throw createError;
+      } else {
+        // Arquivar conversa existente
+        const { error: updateError } = await supabase
+          .from('conversations')
+          .update({ status: false })
+          .eq('id', conversation.id);
+
+        if (updateError) throw updateError;
+      }
+
+      // Remover da lista local
+      setConversations(prev => prev.filter(conv => conv.id !== conversationId));
+      
+      // Se era a conversa selecionada, limpar seleção
+      if (selectedConversation?.id === conversationId) {
+        setSelectedConversation(null);
+      }
+
+      toast({
+        title: "Sucesso",
+        description: "Conversa arquivada com sucesso!",
+      });
+
+    } catch (error) {
+      console.error('Erro ao arquivar conversa:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível arquivar a conversa.",
+        variant: "destructive",
+      });
+    }
+  }, [selectedConversation, toast]);
+
+  const handleDeleteConversation = useCallback(async (conversationId: string) => {
+    try {
+      // Buscar a conversa real no banco de dados
+      const { data: conversation, error: findError } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('id', conversationId)
+        .single();
+
+      if (!findError && conversation) {
+        // Deletar todas as mensagens da conversa
+        const { error: messagesError } = await supabase
+          .from('messages')
+          .delete()
+          .eq('conversation_id', conversation.id);
+
+        if (messagesError) throw messagesError;
+
+        // Deletar participantes
+        const { error: participantsError } = await supabase
+          .from('participants')
+          .delete()
+          .eq('conversation_id', conversation.id);
+
+        if (participantsError) throw participantsError;
+
+        // Deletar a conversa
+        const { error: conversationError } = await supabase
+          .from('conversations')
+          .delete()
+          .eq('id', conversation.id);
+
+        if (conversationError) throw conversationError;
+      }
+
+      // Remover da lista local
+      setConversations(prev => prev.filter(conv => conv.id !== conversationId));
+      
+      // Se era a conversa selecionada, limpar seleção
+      if (selectedConversation?.id === conversationId) {
+        setSelectedConversation(null);
+      }
+
+      toast({
+        title: "Sucesso",
+        description: "Conversa excluída com sucesso!",
+      });
+
+    } catch (error) {
+      console.error('Erro ao excluir conversa:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível excluir a conversa.",
+        variant: "destructive",
+      });
+    }
+  }, [selectedConversation, toast]);
 
   const handleConversationSelect = useCallback((conv) => {
     // Limpar mensagens imediatamente ao selecionar nova conversa
@@ -691,8 +804,8 @@ export default function ZRChatSupabase() {
               onBackToList={() => setSelectedConversation(null)}
               onAvatarClick={(conv) => console.log('Avatar clicked:', conv)}
               onCall={(type) => console.log('Call:', type)}
-              onArchiveConversation={(id) => console.log('Archive:', id)}
-              onDeleteConversation={(id) => console.log('Delete:', id)}
+              onArchiveConversation={handleArchiveConversation}
+              onDeleteConversation={handleDeleteConversation}
               isRecording={isRecording}
               onVideoRecording={() => setIsRecording(!isRecording)}
               onRefreshConversation={handleRefreshConversation}
@@ -712,7 +825,7 @@ export default function ZRChatSupabase() {
                     <div className={`${msg.sender === "me" ? "message-right" : "message-left"} ${
                       msg.isOptimistic ? 'opacity-70' : ''
                     }`}>
-                      {msg.text}
+                      {msg.message}
                       {msg.image_url && (
                         <img 
                           src={msg.image_url} 
