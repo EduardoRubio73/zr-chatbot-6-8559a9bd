@@ -11,7 +11,7 @@ import ZRChatPage from "./pages/ZRChat";
 
 const queryClient = new QueryClient();
 
-const App = () => (
+const App: React.FC = () => (
   <QueryClientProvider client={queryClient}>
     <BrowserRouter>
       <AuthProvider>
