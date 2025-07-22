@@ -1,15 +1,8 @@
 
-import { Suspense } from 'react';
-import ZRChatSupabase from '@/components/ZRChatSupabase';
+import ZRChatComponent from '@/components/ZRChat';
 
 const ZRChatPage = () => {
-  return (
-    <div className="h-screen w-full">
-      <Suspense fallback={<div className="flex items-center justify-center h-screen">Loading...</div>}>
-        <ZRChatSupabase />
-      </Suspense>
-    </div>
-  );
+  return <ZRChatComponent />;
 };
 
 export default ZRChatPage;

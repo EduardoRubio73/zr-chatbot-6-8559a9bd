@@ -1,5 +1,4 @@
 
-import React from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
@@ -69,12 +68,4 @@ window.addEventListener('appinstalled', () => {
   deferredPrompt = null;
 });
 
-const container = document.getElementById("root");
-if (container) {
-  const root = createRoot(container);
-  root.render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>
-  );
-}
+createRoot(document.getElementById("root")!).render(<App />);

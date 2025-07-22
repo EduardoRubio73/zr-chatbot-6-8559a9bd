@@ -1,23 +1,22 @@
-
 import * as React from "react"
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
 import { Check, ChevronRight, Circle } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-const DropdownMenu = React.memo(DropdownMenuPrimitive.Root)
+const DropdownMenu = DropdownMenuPrimitive.Root
 
-const DropdownMenuTrigger = React.memo(DropdownMenuPrimitive.Trigger)
+const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger
 
-const DropdownMenuGroup = React.memo(DropdownMenuPrimitive.Group)
+const DropdownMenuGroup = DropdownMenuPrimitive.Group
 
-const DropdownMenuPortal = React.memo(DropdownMenuPrimitive.Portal)
+const DropdownMenuPortal = DropdownMenuPrimitive.Portal
 
-const DropdownMenuSub = React.memo(DropdownMenuPrimitive.Sub)
+const DropdownMenuSub = DropdownMenuPrimitive.Sub
 
-const DropdownMenuRadioGroup = React.memo(DropdownMenuPrimitive.RadioGroup)
+const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup
 
-const DropdownMenuSubTrigger = React.memo(React.forwardRef<
+const DropdownMenuSubTrigger = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.SubTrigger>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubTrigger> & {
     inset?: boolean
@@ -35,11 +34,11 @@ const DropdownMenuSubTrigger = React.memo(React.forwardRef<
     {children}
     <ChevronRight className="ml-auto h-4 w-4" />
   </DropdownMenuPrimitive.SubTrigger>
-)))
+))
 DropdownMenuSubTrigger.displayName =
   DropdownMenuPrimitive.SubTrigger.displayName
 
-const DropdownMenuSubContent = React.memo(React.forwardRef<
+const DropdownMenuSubContent = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.SubContent>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubContent>
 >(({ className, ...props }, ref) => (
@@ -51,10 +50,11 @@ const DropdownMenuSubContent = React.memo(React.forwardRef<
     )}
     {...props}
   />
-)))
-DropdownMenuSubContent.displayName = DropdownMenuPrimitive.SubContent.displayName
+))
+DropdownMenuSubContent.displayName =
+  DropdownMenuPrimitive.SubContent.displayName
 
-const DropdownMenuContent = React.memo(React.forwardRef<
+const DropdownMenuContent = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
 >(({ className, sideOffset = 4, ...props }, ref) => (
@@ -69,10 +69,10 @@ const DropdownMenuContent = React.memo(React.forwardRef<
       {...props}
     />
   </DropdownMenuPrimitive.Portal>
-)))
+))
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName
 
-const DropdownMenuItem = React.memo(React.forwardRef<
+const DropdownMenuItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & {
     inset?: boolean
@@ -87,10 +87,10 @@ const DropdownMenuItem = React.memo(React.forwardRef<
     )}
     {...props}
   />
-)))
+))
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName
 
-const DropdownMenuCheckboxItem = React.memo(React.forwardRef<
+const DropdownMenuCheckboxItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.CheckboxItem>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.CheckboxItem>
 >(({ className, children, checked, ...props }, ref) => (
@@ -110,11 +110,11 @@ const DropdownMenuCheckboxItem = React.memo(React.forwardRef<
     </span>
     {children}
   </DropdownMenuPrimitive.CheckboxItem>
-)))
+))
 DropdownMenuCheckboxItem.displayName =
   DropdownMenuPrimitive.CheckboxItem.displayName
 
-const DropdownMenuRadioItem = React.memo(React.forwardRef<
+const DropdownMenuRadioItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.RadioItem>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.RadioItem>
 >(({ className, children, ...props }, ref) => (
@@ -133,10 +133,10 @@ const DropdownMenuRadioItem = React.memo(React.forwardRef<
     </span>
     {children}
   </DropdownMenuPrimitive.RadioItem>
-)))
+))
 DropdownMenuRadioItem.displayName = DropdownMenuPrimitive.RadioItem.displayName
 
-const DropdownMenuLabel = React.memo(React.forwardRef<
+const DropdownMenuLabel = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Label>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Label> & {
     inset?: boolean
@@ -151,10 +151,10 @@ const DropdownMenuLabel = React.memo(React.forwardRef<
     )}
     {...props}
   />
-)))
+))
 DropdownMenuLabel.displayName = DropdownMenuPrimitive.Label.displayName
 
-const DropdownMenuSeparator = React.memo(React.forwardRef<
+const DropdownMenuSeparator = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Separator>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Separator>
 >(({ className, ...props }, ref) => (
@@ -163,10 +163,10 @@ const DropdownMenuSeparator = React.memo(React.forwardRef<
     className={cn("-mx-1 my-1 h-px bg-muted", className)}
     {...props}
   />
-)))
+))
 DropdownMenuSeparator.displayName = DropdownMenuPrimitive.Separator.displayName
 
-const DropdownMenuShortcut = React.memo(({
+const DropdownMenuShortcut = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLSpanElement>) => {
@@ -176,7 +176,7 @@ const DropdownMenuShortcut = React.memo(({
       {...props}
     />
   )
-})
+}
 DropdownMenuShortcut.displayName = "DropdownMenuShortcut"
 
 export {

@@ -1,10 +1,9 @@
-
-import React from "react"
+import * as React from "react"
 import * as AvatarPrimitive from "@radix-ui/react-avatar"
 
 import { cn } from "@/lib/utils"
 
-const Avatar = React.memo(React.forwardRef<
+const Avatar = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Root>
 >(({ className, ...props }, ref) => (
@@ -16,10 +15,10 @@ const Avatar = React.memo(React.forwardRef<
     )}
     {...props}
   />
-)))
+))
 Avatar.displayName = AvatarPrimitive.Root.displayName
 
-const AvatarImage = React.memo(React.forwardRef<
+const AvatarImage = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Image>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>
 >(({ className, ...props }, ref) => (
@@ -28,10 +27,10 @@ const AvatarImage = React.memo(React.forwardRef<
     className={cn("aspect-square h-full w-full", className)}
     {...props}
   />
-)))
+))
 AvatarImage.displayName = AvatarPrimitive.Image.displayName
 
-const AvatarFallback = React.memo(React.forwardRef<
+const AvatarFallback = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Fallback>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Fallback>
 >(({ className, ...props }, ref) => (
@@ -43,7 +42,7 @@ const AvatarFallback = React.memo(React.forwardRef<
     )}
     {...props}
   />
-)))
+))
 AvatarFallback.displayName = AvatarPrimitive.Fallback.displayName
 
 export { Avatar, AvatarImage, AvatarFallback }
