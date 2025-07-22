@@ -554,7 +554,7 @@ export default function ZRChatSupabase() {
         // Arquivar a conversa recém criada
         const { error: archiveError } = await supabase
           .from('conversations')
-          .update({ status: false })
+          .update({ status: false } as any)
           .eq('id', newConversation.id);
 
         if (archiveError) throw archiveError;
@@ -562,7 +562,7 @@ export default function ZRChatSupabase() {
         // Arquivar conversa existente
         const { error: updateError } = await supabase
           .from('conversations')
-          .update({ status: false })
+          .update({ status: false } as any)
           .eq('id', conversation.id);
 
         if (updateError) throw updateError;
