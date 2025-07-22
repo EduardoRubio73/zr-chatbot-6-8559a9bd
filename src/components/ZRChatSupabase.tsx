@@ -98,32 +98,128 @@ export default function ZRChatSupabase() {
     try {
       console.log('Carregando conversas para usuário:', user.id);
       
-      // Buscar todos os usuários para criar conversas
-      const { data: users, error: usersError } = await supabase
+      // Buscar conversas reais do usuário no banco
+      const { data: participantsData, error: participantsError } = await supabase
+        .from('participants')
+        .select(`
+          conversation_id,
+          conversations!inner (
+            id,
+            is_group,
+            last_message_at,
+            status,
+            groups (
+              name,
+              avatar_url
+            )
+          )
+        `)
+        .eq('user_id', user.id)
+        .eq('conversations.status', true); // Apenas conversas ativas
+
+      if (participantsError) {
+        console.log('Erro ao buscar conversas:', participantsError);
+      }
+
+      const realConversations = [];
+
+      // Processar conversas existentes
+      if (participantsData && participantsData.length > 0) {
+        for (const participant of participantsData) {
+          const conversation = participant.conversations;
+          
+          if (conversation.is_group) {
+            // Conversa em grupo
+            const group = conversation.groups;
+            realConversations.push({
+              id: conversation.id,
+              name: group?.name || 'Grupo',
+              avatar: group?.avatar_url || "https://ui-avatars.com/api/?name=Grupo&background=25D366&color=fff",
+              lastMessage: "Última mensagem...",
+              timestamp: conversation.last_message_at ? new Date(conversation.last_message_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : "agora",
+              unreadCount: 0,
+              isOnline: false,
+              isGroup: true
+            });
+          } else {
+            // Conversa individual - buscar o outro participante
+            const { data: otherParticipants, error: otherError } = await supabase
+              .from('participants')
+              .select(`
+                user_id,
+                users!inner (
+                  id,
+                  name,
+                  email,
+                  avatar_url,
+                  is_online
+                )
+              `)
+              .eq('conversation_id', conversation.id)
+              .neq('user_id', user.id);
+
+            if (!otherError && otherParticipants && otherParticipants.length > 0) {
+              const otherUser = otherParticipants[0].users;
+              realConversations.push({
+                id: conversation.id,
+                name: otherUser.name || otherUser.email.split('@')[0],
+                avatar: otherUser.avatar_url || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face",
+                lastMessage: "Última mensagem...",
+                timestamp: conversation.last_message_at ? new Date(conversation.last_message_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : "agora",
+                unreadCount: 0,
+                isOnline: onlineUsers.has(otherUser.id),
+                otherUserId: otherUser.id,
+                isGroup: false
+              });
+            }
+          }
+        }
+      }
+
+      // Buscar todos os usuários para criar opções de novas conversas
+      const { data: allUsers, error: usersError } = await supabase
         .from('users')
         .select('id, name, email, avatar_url, is_online')
         .neq('id', user.id);
 
-      if (usersError) throw usersError;
+      if (usersError) {
+        console.log('Erro ao buscar usuários:', usersError);
+      }
 
-      // Criar conversas baseadas nos usuários
-      const userConversations = users.map(otherUser => ({
-        id: `${user.id}-${otherUser.id}`,
-        name: otherUser.name || otherUser.email.split('@')[0],
-        avatar: otherUser.avatar_url || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face",
-        lastMessage: "Iniciar conversa...",
-        timestamp: "agora",
-        unreadCount: 0,
-        isOnline: onlineUsers.has(otherUser.id),
-        otherUserId: otherUser.id
-      }));
+      // Adicionar usuários que ainda não têm conversa
+      if (allUsers) {
+        for (const otherUser of allUsers) {
+          // Verificar se já existe conversa com este usuário
+          const existingConversation = realConversations.find(conv => 
+            conv.otherUserId === otherUser.id
+          );
+          
+          if (!existingConversation) {
+            // Criar entrada para nova conversa potencial
+            realConversations.push({
+              id: `new-${user.id}-${otherUser.id}`, // ID temporário para novas conversas
+              name: otherUser.name || otherUser.email.split('@')[0],
+              avatar: otherUser.avatar_url || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face",
+              lastMessage: "Iniciar conversa...",
+              timestamp: "agora",
+              unreadCount: 0,
+              isOnline: onlineUsers.has(otherUser.id),
+              otherUserId: otherUser.id,
+              isNew: true, // Flag para identificar conversas novas
+              isGroup: false
+            });
+          }
+        }
+      }
 
-      setConversations(userConversations);
-      if (!selectedConversation && userConversations.length > 0) {
-        setSelectedConversation(userConversations[0]);
+      setConversations(realConversations);
+      
+      // Se não há conversa selecionada e há conversas disponíveis, selecionar a primeira
+      if (!selectedConversation && realConversations.length > 0) {
+        setSelectedConversation(realConversations[0]);
       }
       
-      console.log('Conversas carregadas com sucesso:', userConversations.length);
+      console.log('Conversas carregadas com sucesso:', realConversations.length);
     } catch (error) {
       console.error('Erro ao carregar conversas:', error);
       toast({
@@ -278,31 +374,43 @@ export default function ZRChatSupabase() {
 
   const getOrCreateConversation = async (otherUserId: string) => {
     try {
-      // Primeiro, tentar encontrar uma conversa existente
-      const { data: existingParticipants, error: participantsError } = await supabase
+      // Primeiro, tentar encontrar uma conversa existente entre os dois usuários
+      const { data: myParticipants, error: myParticipantsError } = await supabase
         .from('participants')
-        .select('conversation_id')
+        .select('conversation_id, conversations!inner(is_group, status)')
         .eq('user_id', user.id);
 
-      if (participantsError) throw participantsError;
+      if (myParticipantsError) throw myParticipantsError;
 
-      for (const participant of existingParticipants || []) {
+      // Verificar cada conversa para encontrar uma com o outro usuário
+      for (const participant of myParticipants || []) {
+        const conversation = participant.conversations;
+        
+        // Pular conversas em grupo ou arquivadas
+        if (conversation.is_group || !conversation.status) continue;
+
         const { data: otherParticipant, error: otherError } = await supabase
           .from('participants')
           .select('user_id')
           .eq('conversation_id', participant.conversation_id)
           .eq('user_id', otherUserId)
-          .single();
+          .maybeSingle(); // Usar maybeSingle em vez de single
 
         if (!otherError && otherParticipant) {
+          console.log('Conversa existente encontrada:', participant.conversation_id);
           return participant.conversation_id;
         }
       }
 
       // Se não encontrou, criar nova conversa
+      console.log('Criando nova conversa entre:', user.id, 'e', otherUserId);
+      
       const { data: conversation, error: convError } = await supabase
         .from('conversations')
-        .insert({ is_group: false })
+        .insert({ 
+          is_group: false,
+          status: true // Conversa ativa
+        })
         .select()
         .single();
 
@@ -318,6 +426,11 @@ export default function ZRChatSupabase() {
 
       if (participantError) throw participantError;
 
+      console.log('Nova conversa criada:', conversation.id);
+      
+      // Recarregar lista de conversas para mostrar a nova conversa
+      await loadConversations();
+
       return conversation.id;
     } catch (error) {
       console.error('Erro ao criar/encontrar conversa:', error);
@@ -327,6 +440,31 @@ export default function ZRChatSupabase() {
 
   const handleSend = async () => {
     if (!selectedConversation || !user || !newMessage.trim()) return;
+    
+    let conversationId = selectedConversation.id;
+    
+    // Se é uma conversa nova (ID começa com 'new-'), criar a conversa primeiro
+    if (conversationId.startsWith('new-')) {
+      console.log('Criando nova conversa para:', selectedConversation.otherUserId);
+      try {
+        conversationId = await getOrCreateConversation(selectedConversation.otherUserId);
+        
+        // Atualizar o selectedConversation com o ID real
+        setSelectedConversation(prev => ({
+          ...prev,
+          id: conversationId,
+          isNew: false
+        }));
+      } catch (error) {
+        console.error('Erro ao criar conversa:', error);
+        toast({
+          title: "Erro",
+          description: "Não foi possível criar a conversa.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     
     // Validar mensagem antes de enviar
     const validation = validateMessage(newMessage);
@@ -531,42 +669,44 @@ export default function ZRChatSupabase() {
 
   const handleArchiveConversation = useCallback(async (conversationId: string) => {
     try {
+      // Se é uma conversa nova (não existe no banco), não fazer nada
+      if (conversationId.startsWith('new-')) {
+        toast({
+          title: "Aviso",
+          description: "Não é possível arquivar uma conversa que ainda não foi iniciada.",
+          variant: "default",
+        });
+        return;
+      }
+
       // Buscar a conversa real no banco de dados
       const { data: conversation, error: findError } = await supabase
         .from('conversations')
-        .select('id')
+        .select('id, status')
         .eq('id', conversationId)
-        .single();
+        .maybeSingle(); // Usar maybeSingle em vez de single
 
       if (findError) {
-        console.log('Conversa não encontrada no banco, criando uma nova...');
-        // Se a conversa não existe, criar uma nova e arquivar
-        const { data: newConversation, error: createError } = await supabase
-          .from('conversations')
-          .insert({ 
-            is_group: false
-          })
-          .select()
-          .single();
-
-        if (createError) throw createError;
-
-        // Arquivar a conversa recém criada
-        const { error: archiveError } = await supabase
-          .from('conversations')
-          .update({ status: false } as any)
-          .eq('id', newConversation.id);
-
-        if (archiveError) throw archiveError;
-      } else {
-        // Arquivar conversa existente
-        const { error: updateError } = await supabase
-          .from('conversations')
-          .update({ status: false } as any)
-          .eq('id', conversation.id);
-
-        if (updateError) throw updateError;
+        console.error('Erro ao buscar conversa:', findError);
+        throw findError;
       }
+
+      if (!conversation) {
+        toast({
+          title: "Erro",
+          description: "Conversa não encontrada.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Arquivar conversa existente
+      const { error: updateError } = await supabase
+        .from('conversations')
+        .update({ status: false } as any)
+        .eq('id', conversation.id);
+
+      if (updateError) throw updateError;
 
       // Remover da lista local
       setConversations(prev => prev.filter(conv => conv.id !== conversationId));
@@ -593,21 +733,44 @@ export default function ZRChatSupabase() {
 
   const handleDeleteConversation = useCallback(async (conversationId: string) => {
     try {
+      // Se é uma conversa nova (não existe no banco), apenas remover da lista local
+      if (conversationId.startsWith('new-')) {
+        setConversations(prev => prev.filter(conv => conv.id !== conversationId));
+        
+        if (selectedConversation?.id === conversationId) {
+          setSelectedConversation(null);
+        }
+
+        toast({
+          title: "Sucesso",
+          description: "Contato removido da lista!",
+        });
+        return;
+      }
+
       // Buscar a conversa real no banco de dados
       const { data: conversation, error: findError } = await supabase
         .from('conversations')
         .select('id')
         .eq('id', conversationId)
-        .single();
+        .maybeSingle(); // Usar maybeSingle em vez de single
 
-      if (!findError && conversation) {
+      if (findError) {
+        console.error('Erro ao buscar conversa:', findError);
+        throw findError;
+      }
+
+      if (conversation) {
         // Deletar todas as mensagens da conversa
         const { error: messagesError } = await supabase
           .from('messages')
           .delete()
           .eq('conversation_id', conversation.id);
 
-        if (messagesError) throw messagesError;
+        if (messagesError) {
+          console.error('Erro ao deletar mensagens:', messagesError);
+          // Continuar mesmo se houver erro nas mensagens
+        }
 
         // Deletar participantes
         const { error: participantsError } = await supabase
@@ -615,7 +778,10 @@ export default function ZRChatSupabase() {
           .delete()
           .eq('conversation_id', conversation.id);
 
-        if (participantsError) throw participantsError;
+        if (participantsError) {
+          console.error('Erro ao deletar participantes:', participantsError);
+          // Continuar mesmo se houver erro nos participantes
+        }
 
         // Deletar a conversa
         const { error: conversationError } = await supabase
