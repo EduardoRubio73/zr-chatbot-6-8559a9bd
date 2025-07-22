@@ -76,9 +76,9 @@ const ZRChatSupabase = () => {
       ...message,
       id: `temp-${Date.now()}`,
       isOptimistic: true,
-      created_at: new Date().toISOString(),
+      sent_at: new Date().toISOString(),
       sender: "me",
-      isRead: false
+      is_read: false
     };
     setMessages(prev => [...prev, optimisticMessage]);
     return optimisticMessage.id;
@@ -170,9 +170,9 @@ const ZRChatSupabase = () => {
         const formattedMessages = realMessages.map(msg => ({
           ...msg,
           sender: msg.sender_id === user.id ? 'me' : 'other',
-          created_at: msg.sent_at,
-          text: msg.text || msg.content || '',
-          isRead: true
+          sent_at: msg.sent_at,
+          text: msg.text || '',
+          is_read: true
         }));
         setMessages(formattedMessages);
       } else {
@@ -182,15 +182,15 @@ const ZRChatSupabase = () => {
             id: `sample-1-${conversationId}`,
             text: "Olá! Como você está?",
             sender: "other",
-            created_at: new Date(Date.now() - 300000).toISOString(),
-            isRead: true
+            sent_at: new Date(Date.now() - 300000).toISOString(),
+            is_read: true
           },
           {
             id: `sample-2-${conversationId}`,
             text: "Oi! Estou bem, obrigado! E você?",
             sender: "me",
-            created_at: new Date(Date.now() - 120000).toISOString(),
-            isRead: true
+            sent_at: new Date(Date.now() - 120000).toISOString(),
+            is_read: true
           }
         ];
         setMessages(sampleMessages);
@@ -205,8 +205,8 @@ const ZRChatSupabase = () => {
           id: `error-sample-${conversationId}`,
           text: "Sistema funcionando. Digite sua mensagem!",
           sender: "other",
-          created_at: new Date().toISOString(),
-          isRead: true
+          sent_at: new Date().toISOString(),
+          is_read: true
         }
       ];
       setMessages(sampleMessages);
@@ -232,8 +232,8 @@ const ZRChatSupabase = () => {
           return [...prev, {
             ...newMessage,
             sender: newMessage.sender_id === user.id ? 'me' : 'other',
-            created_at: newMessage.sent_at || newMessage.created_at,
-            text: newMessage.text || newMessage.content || ''
+            sent_at: newMessage.sent_at,
+            text: newMessage.text || ''
           }];
         });
         
@@ -485,8 +485,7 @@ const ZRChatSupabase = () => {
         text: sanitizedMessage,
         sender_id: user.id,
         conversation_id: conversationId,
-        sent_at: new Date().toISOString(),
-        created_at: new Date().toISOString()
+        sent_at: new Date().toISOString()
       };
 
       // Try to insert in database, but don't fail if it doesn't work
@@ -496,8 +495,7 @@ const ZRChatSupabase = () => {
           .insert({
             conversation_id: conversationId,
             sender_id: user.id,
-            text: sanitizedMessage,
-            content: sanitizedMessage
+            text: sanitizedMessage
           })
           .select()
           .single();
@@ -506,16 +504,16 @@ const ZRChatSupabase = () => {
           updateOptimisticMessage(tempId, {
             id: message.id,
             text: sanitizedMessage,
-            created_at: message.sent_at || message.created_at,
-            isRead: false
+            sent_at: message.sent_at,
+            is_read: false
           });
         } else {
           // Update with local data if database insert fails
           updateOptimisticMessage(tempId, {
             id: messageData.id,
             text: sanitizedMessage,
-            created_at: messageData.created_at,
-            isRead: false
+            sent_at: messageData.sent_at,
+            is_read: false
           });
         }
       } catch (dbError) {
@@ -523,8 +521,8 @@ const ZRChatSupabase = () => {
         updateOptimisticMessage(tempId, {
           id: messageData.id,
           text: sanitizedMessage,
-          created_at: messageData.created_at,
-          isRead: false
+          sent_at: messageData.sent_at,
+          is_read: false
         });
       }
       
@@ -537,8 +535,8 @@ const ZRChatSupabase = () => {
       updateOptimisticMessage(tempId, {
         id: `local-${Date.now()}`,
         text: sanitizedMessage,
-        created_at: new Date().toISOString(),
-        isRead: false
+        sent_at: new Date().toISOString(),
+        is_read: false
       });
       
       toast({
@@ -615,8 +613,8 @@ const ZRChatSupabase = () => {
       updateOptimisticMessage(tempId, {
         id: message.id,
         text: `[${type.toUpperCase()}]`,
-        created_at: message.sent_at,
-        isRead: false,
+        sent_at: message.sent_at,
+        is_read: false,
         [`${type}_url`]: urlData.publicUrl
       });
 
@@ -919,9 +917,9 @@ const ZRChatSupabase = () => {
                         </video>
                       )}
                       <span className="message-status">
-                        {formatTime(msg.created_at)}
+                        {formatTime(msg.sent_at)}
                         {msg.sender === "me" && (
-                          msg.isRead ? (
+                          msg.is_read ? (
                             <CheckCheck size={14} className="text-[#4A90E2]" />
                           ) : (
                             <Check size={14} className="text-[#4A90E2]" />
