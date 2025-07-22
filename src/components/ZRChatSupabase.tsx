@@ -276,6 +276,88 @@ const ZRChatSupabase = () => {
     }
   }, [selectedConversation, toast]);
 
+  const handleArchiveConversation = useCallback(async (conversationId: string) => {
+    try {
+      console.log('Arquivando conversa:', conversationId);
+      
+      // Encontrar a conversa na lista
+      const conversationToArchive = conversations.find(conv => conv.id === conversationId);
+      if (!conversationToArchive) {
+        toast({
+          title: "Erro",
+          description: "Conversa não encontrada.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Marcar conversa como arquivada (simulado)
+      setConversations(prev => prev.map(conv => 
+        conv.id === conversationId 
+          ? { ...conv, isArchived: true }
+          : conv
+      ));
+
+      // Se a conversa arquivada estava selecionada, limpar seleção
+      if (selectedConversation?.id === conversationId) {
+        setSelectedConversation(null);
+        setMessages([]);
+      }
+
+      toast({
+        title: "Sucesso",
+        description: `Conversa com ${conversationToArchive.name} foi arquivada.`,
+      });
+      
+    } catch (error) {
+      console.error('Erro ao arquivar conversa:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível arquivar a conversa.",
+        variant: "destructive",
+      });
+    }
+  }, [conversations, selectedConversation, toast]);
+
+  const handleDeleteConversation = useCallback(async (conversationId: string) => {
+    try {
+      console.log('Excluindo conversa:', conversationId);
+      
+      // Encontrar a conversa na lista
+      const conversationToDelete = conversations.find(conv => conv.id === conversationId);
+      if (!conversationToDelete) {
+        toast({
+          title: "Erro",
+          description: "Conversa não encontrada.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Remover conversa da lista
+      setConversations(prev => prev.filter(conv => conv.id !== conversationId));
+
+      // Se a conversa excluída estava selecionada, limpar seleção
+      if (selectedConversation?.id === conversationId) {
+        setSelectedConversation(null);
+        setMessages([]);
+      }
+
+      toast({
+        title: "Sucesso",
+        description: `Conversa com ${conversationToDelete.name} foi excluída.`,
+      });
+      
+    } catch (error) {
+      console.error('Erro ao excluir conversa:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível excluir a conversa.",
+        variant: "destructive",
+      });
+    }
+  }, [conversations, selectedConversation, toast]);
+
   const getOrCreateConversation = async (otherUserId: string) => {
     try {
       // Primeiro, tentar encontrar uma conversa existente
@@ -495,7 +577,7 @@ const ZRChatSupabase = () => {
   }, []);
 
   const filteredConversations = conversations.filter(conv =>
-    conv.name.toLowerCase().includes(searchQuery.toLowerCase())
+    conv.name.toLowerCase().includes(searchQuery.toLowerCase()) && !conv.isArchived
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -691,8 +773,8 @@ const ZRChatSupabase = () => {
               onBackToList={() => setSelectedConversation(null)}
               onAvatarClick={(conv) => console.log('Avatar clicked:', conv)}
               onCall={(type) => console.log('Call:', type)}
-              onArchiveConversation={(id) => console.log('Archive:', id)}
-              onDeleteConversation={(id) => console.log('Delete:', id)}
+              onArchiveConversation={handleArchiveConversation}
+              onDeleteConversation={handleDeleteConversation}
               isRecording={isRecording}
               onVideoRecording={() => setIsRecording(!isRecording)}
               onRefreshConversation={handleRefreshConversation}
