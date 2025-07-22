@@ -21,6 +21,7 @@ export type Database = {
           id: string
           is_group: boolean | null
           last_message_at: string | null
+          status: boolean
         }
         Insert: {
           created_at?: string | null
@@ -28,6 +29,7 @@ export type Database = {
           id?: string
           is_group?: boolean | null
           last_message_at?: string | null
+          status?: boolean
         }
         Update: {
           created_at?: string | null
@@ -35,6 +37,7 @@ export type Database = {
           id?: string
           is_group?: boolean | null
           last_message_at?: string | null
+          status?: boolean
         }
         Relationships: [
           {
@@ -121,9 +124,10 @@ export type Database = {
           id: string
           image_url: string | null
           is_read: boolean | null
+          message: string | null
           sender_id: string | null
           sent_at: string | null
-          text: string | null
+          session_id: string | null
           video_url: string | null
         }
         Insert: {
@@ -132,9 +136,10 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_read?: boolean | null
+          message?: string | null
           sender_id?: string | null
           sent_at?: string | null
-          text?: string | null
+          session_id?: string | null
           video_url?: string | null
         }
         Update: {
@@ -143,9 +148,10 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_read?: boolean | null
+          message?: string | null
           sender_id?: string | null
           sent_at?: string | null
-          text?: string | null
+          session_id?: string | null
           video_url?: string | null
         }
         Relationships: [
@@ -164,6 +170,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      n8n_conversations: {
+        Row: {
+          id: number
+          message: Json
+          session_id: string
+        }
+        Insert: {
+          id?: number
+          message: Json
+          session_id: string
+        }
+        Update: {
+          id?: number
+          message?: Json
+          session_id?: string
+        }
+        Relationships: []
       }
       participants: {
         Row: {

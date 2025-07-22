@@ -544,13 +544,20 @@ export default function ZRChatSupabase() {
         const { data: newConversation, error: createError } = await supabase
           .from('conversations')
           .insert({ 
-            is_group: false,
-            status: false // Criar já arquivada
+            is_group: false
           })
           .select()
           .single();
 
         if (createError) throw createError;
+
+        // Arquivar a conversa recém criada
+        const { error: archiveError } = await supabase
+          .from('conversations')
+          .update({ status: false })
+          .eq('id', newConversation.id);
+
+        if (archiveError) throw archiveError;
       } else {
         // Arquivar conversa existente
         const { error: updateError } = await supabase
