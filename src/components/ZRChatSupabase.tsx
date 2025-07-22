@@ -232,18 +232,18 @@ export default function ZRChatSupabase() {
 
   const loadMessages = async (conversationId: string) => {
     try {
-      console.log('Carregando mensagens para conversa:', conversationId);
+      console.log('📨 Carregando mensagens para conversa:', conversationId);
       
       // Limpar mensagens imediatamente ao trocar de conversa
       setMessages([]);
       
       // Se é uma conversa nova, não carregar mensagens
       if (conversationId.startsWith('new-')) {
-        console.log('Nenhuma conversa existente encontrada, mensagens em branco até enviar primeira mensagem');
+        console.log('💬 Nenhuma conversa existente encontrada, mensagens em branco até enviar primeira mensagem');
         return;
       }
       
-      // Buscar mensagens reais da conversa
+      // ===== BUSCAR MENSAGENS COM DADOS DO REMETENTE =====
       const { data: messagesData, error: messagesError } = await supabase
         .from('messages')
         .select(`
@@ -254,17 +254,22 @@ export default function ZRChatSupabase() {
           video_url,
           sent_at,
           is_read,
-          sender_id
+          sender_id,
+          sender:users!sender_id(
+            id,
+            name,
+            avatar_url
+          )
         `)
         .eq('conversation_id', conversationId)
         .order('sent_at', { ascending: true });
 
       if (messagesError) {
-        console.error('Erro ao carregar mensagens:', messagesError);
+        console.error('❌ Erro ao carregar mensagens:', messagesError);
         return;
       }
 
-      // Transformar mensagens para o formato esperado
+      // ===== TRANSFORMAR MENSAGENS PARA O FORMATO ESPERADO =====
       const formattedMessages = (messagesData || []).map(msg => ({
         id: msg.id,
         message: msg.text || '',
@@ -272,14 +277,42 @@ export default function ZRChatSupabase() {
         image_url: msg.image_url,
         video_url: msg.video_url,
         sender: msg.sender_id === user.id ? 'me' : 'other',
+        sender_name: msg.sender?.name || 'Usuário',
+        sender_avatar: msg.sender?.avatar_url,
         created_at: msg.sent_at,
         isRead: msg.is_read
       }));
 
       setMessages(formattedMessages);
-      console.log('Mensagens carregadas com sucesso:', formattedMessages.length);
+      console.log('✅ Mensagens carregadas com sucesso:', formattedMessages.length);
+
+      // ===== MARCAR MENSAGENS COMO LIDAS =====
+      if (formattedMessages.length > 0) {
+        const unreadMessages = formattedMessages
+          .filter(msg => msg.sender !== 'me' && !msg.isRead)
+          .map(msg => msg.id);
+
+        if (unreadMessages.length > 0) {
+          console.log('📋 Marcando mensagens como lidas:', unreadMessages.length);
+          const { error: readError } = await supabase
+            .from('messages')
+            .update({ is_read: true })
+            .in('id', unreadMessages);
+
+          if (readError) {
+            console.error('⚠️ Erro ao marcar mensagens como lidas:', readError);
+          } else {
+            console.log('✅ Mensagens marcadas como lidas');
+          }
+        }
+      }
     } catch (error) {
-      console.error('Erro ao carregar mensagens:', error);
+      console.error('💥 Erro ao carregar mensagens:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao carregar mensagens da conversa.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -397,81 +430,114 @@ export default function ZRChatSupabase() {
         throw new Error('Usuário não autenticado');
       }
 
-      console.log('Criando/buscando conversa entre:', user.id, 'e', otherUserId);
+      console.log('🔍 Buscando conversa existente entre:', user.id, 'e', otherUserId);
 
-      // Primeiro, tentar encontrar uma conversa existente entre os dois usuários
-      const { data: myParticipants, error: myParticipantsError } = await supabase
+      // Buscar conversas do usuário atual
+      const { data: myConversations, error: myConversationsError } = await supabase
         .from('participants')
-        .select('conversation_id, conversations!inner(is_group, status)')
-        .eq('user_id', user.id);
+        .select(`
+          conversation_id,
+          conversations!inner(
+            id,
+            is_group,
+            status
+          )
+        `)
+        .eq('user_id', user.id)
+        .eq('conversations.is_group', false)  
+        .eq('conversations.status', true);
 
-      if (myParticipantsError) throw myParticipantsError;
+      if (myConversationsError) {
+        console.error('❌ Erro ao buscar minhas conversas:', myConversationsError);
+        throw myConversationsError;
+      }
 
-      // Verificar cada conversa para encontrar uma com o outro usuário
-      for (const participant of myParticipants || []) {
-        const conversation = participant.conversations;
-        
-        // Pular conversas em grupo ou arquivadas
-        if (conversation.is_group || !conversation.status) continue;
+      console.log('📋 Minhas conversas encontradas:', myConversations?.length || 0);
 
-        const { data: otherParticipant, error: otherError } = await supabase
-          .from('participants')
-          .select('user_id')
-          .eq('conversation_id', participant.conversation_id)
-          .eq('user_id', otherUserId)
-          .maybeSingle(); // Usar maybeSingle em vez de single
+      // Verificar se alguma dessas conversas tem o outro usuário
+      if (myConversations && myConversations.length > 0) {
+        for (const myConv of myConversations) {
+          const { data: otherParticipant, error: otherError } = await supabase
+            .from('participants')
+            .select('user_id')
+            .eq('conversation_id', myConv.conversation_id)
+            .eq('user_id', otherUserId)
+            .maybeSingle();
 
-        if (!otherError && otherParticipant) {
-          console.log('Conversa existente encontrada:', participant.conversation_id);
-          return participant.conversation_id;
+          if (!otherError && otherParticipant) {
+            console.log('✅ Conversa existente encontrada:', myConv.conversation_id);
+            return myConv.conversation_id;
+          }
         }
       }
 
-      // Se não encontrou, criar nova conversa
-      console.log('Criando nova conversa...');
+      // ===== CRIAR NOVA CONVERSA =====
+      console.log('🆕 Criando nova conversa...');
       
-      const { data: conversation, error: convError } = await supabase
+      const { data: newConversation, error: createError } = await supabase
         .from('conversations')
-        .insert({ 
+        .insert({
           is_group: false,
-          status: true // Conversa ativa
+          status: true
         })
-        .select()
+        .select('*')
         .single();
 
-      // ✔ Verificar se conversa foi criada com sucesso
-      if (convError || !conversation) {
-        console.error('Erro ao criar conversa:', convError);
-        throw convError || new Error('Conversa não criada');
+      if (createError) {
+        console.error('❌ Erro ao criar conversa:', createError);
+        throw createError;
       }
 
-      console.log('Conversa criada com sucesso:', conversation.id);
+      if (!newConversation) {
+        console.error('❌ Conversa não foi criada - retorno vazio');
+        throw new Error('Conversa não foi criada');
+      }
 
-      // Adicionar participantes
-      console.log('Adicionando participantes...');
-      const { data: participants, error: participantError } = await supabase
+      console.log('✅ Conversa criada com sucesso:', newConversation.id);
+
+      // ===== ADICIONAR PARTICIPANTES =====
+      console.log('👥 Adicionando participantes...');
+      
+      const participantsToAdd = [
+        { 
+          conversation_id: newConversation.id, 
+          user_id: user.id 
+        },
+        { 
+          conversation_id: newConversation.id, 
+          user_id: otherUserId 
+        }
+      ];
+
+      const { data: participants, error: participantsError } = await supabase
         .from('participants')
-        .insert([
-          { conversation_id: conversation.id, user_id: user.id },
-          { conversation_id: conversation.id, user_id: otherUserId }
-        ])
-        .select();
+        .insert(participantsToAdd)
+        .select('*');
 
-      // ✔ Verificar se participantes foram inseridos corretamente
-      if (participantError || !participants || participants.length < 2) {
-        console.error('Erro ao adicionar participantes:', participantError);
-        console.error('Participantes retornados:', participants);
-        throw participantError || new Error('Participantes não adicionados corretamente');
+      if (participantsError) {
+        console.error('❌ Erro ao adicionar participantes:', participantsError);
+        // Tentar deletar a conversa criada em caso de erro
+        await supabase.from('conversations').delete().eq('id', newConversation.id);
+        throw participantsError;
       }
 
-      console.log('Participantes adicionados com sucesso:', participants.length);
+      if (!participants || participants.length !== 2) {
+        console.error('❌ Participantes não foram adicionados corretamente:', participants);
+        // Tentar deletar a conversa criada em caso de erro
+        await supabase.from('conversations').delete().eq('id', newConversation.id);
+        throw new Error('Participantes não foram adicionados corretamente');
+      }
+
+      console.log('✅ Participantes adicionados com sucesso:', participants.length);
       
       // ✔ Forçar reload das conversas após criação
-      await loadConversations();
+      setTimeout(() => {
+        loadConversations();
+      }, 100);
       
-      return conversation.id;
+      return newConversation.id;
     } catch (error) {
-      console.error('Erro em getOrCreateConversation:', error);
+      console.error('💥 Erro em getOrCreateConversation:', error);
       throw error;
     }
   };
@@ -481,9 +547,9 @@ export default function ZRChatSupabase() {
     
     let conversationId = selectedConversation.id;
     
-    // Se é uma conversa nova (ID começa com 'new-'), criar a conversa primeiro
+    // ===== CRIAR CONVERSA SE NECESSÁRIO =====
     if (conversationId.startsWith('new-')) {
-      console.log('Criando nova conversa para:', selectedConversation.otherUserId);
+      console.log('🆕 Criando nova conversa para:', selectedConversation.otherUserId);
       try {
         conversationId = await getOrCreateConversation(selectedConversation.otherUserId);
         
@@ -494,17 +560,17 @@ export default function ZRChatSupabase() {
           isNew: false
         }));
       } catch (error) {
-        console.error('Erro ao criar conversa:', error);
+        console.error('❌ Erro ao criar conversa:', error);
         toast({
           title: "Erro",
-          description: "Não foi possível criar a conversa.",
+          description: `Não foi possível criar a conversa: ${error.message}`,
           variant: "destructive",
         });
         return;
       }
     }
     
-    // Validar mensagem antes de enviar
+    // ===== VALIDAR MENSAGEM =====
     const validation = validateMessage(newMessage);
     if (!validation.isValid) {
       setMessageError(validation.error || "Mensagem inválida");
@@ -529,12 +595,9 @@ export default function ZRChatSupabase() {
     }, 10);
 
     try {
-      console.log('Enviando mensagem:', sanitizedMessage);
+      console.log('📤 Enviando mensagem para conversa:', conversationId);
 
-      // Get or create conversation
-      const conversationId = await getOrCreateConversation(selectedConversation.otherUserId);
-
-      // Inserir mensagem no banco
+      // ===== ENVIAR MENSAGEM =====
       const { data: message, error: messageError } = await supabase
         .from('messages')
         .insert({
@@ -542,10 +605,20 @@ export default function ZRChatSupabase() {
           sender_id: user.id,
           text: sanitizedMessage
         })
-        .select()
+        .select('*')
         .single();
 
-      if (messageError) throw messageError;
+      if (messageError) {
+        console.error('❌ Erro ao enviar mensagem:', messageError);
+        throw messageError;
+      }
+
+      if (!message) {
+        console.error('❌ Mensagem não foi criada - retorno vazio');
+        throw new Error('Mensagem não foi criada');
+      }
+
+      console.log('✅ Mensagem enviada com sucesso:', message.id);
 
       // Atualizar mensagem otimista com dados reais
       updateOptimisticMessage(tempId, {
@@ -558,14 +631,14 @@ export default function ZRChatSupabase() {
       playSound("livechat");
       
     } catch (error) {
-      console.error('Erro ao enviar mensagem:', error);
+      console.error('💥 Erro ao enviar mensagem:', error);
       
-      // Remover mensagem otimista falha
+      // Remover mensagem otimista em caso de falha
       removeOptimisticMessage(tempId);
       
       toast({
         title: "Erro ao enviar mensagem",
-        description: "Não foi possível enviar a mensagem. Verifique sua conexão e tente novamente.",
+        description: `Não foi possível enviar a mensagem: ${error.message}`,
         variant: "destructive",
       });
     }
@@ -574,7 +647,7 @@ export default function ZRChatSupabase() {
   const handleMediaUpload = async (file: File, type: 'image' | 'audio' | 'video') => {
     if (!selectedConversation || !user) return;
 
-    // Validar arquivo antes do upload
+    // ===== VALIDAR ARQUIVO =====
     const validation = validateFileUpload(file);
     if (!validation.isValid) {
       toast({
@@ -598,28 +671,46 @@ export default function ZRChatSupabase() {
     });
 
     try {
-      console.log('Fazendo upload de arquivo:', file.name);
+      console.log('📎 Fazendo upload de arquivo:', file.name, 'tipo:', type);
+      
+      // ===== PREPARAR ARQUIVO =====
       const fileExt = file.name.split('.').pop();
       const sanitizedName = sanitizeFilename(file.name.replace(`.${fileExt}`, ''));
       const fileName = `${Date.now()}-${sanitizedName}.${fileExt}`;
       const filePath = `${fileName}`;
 
-      // Upload do arquivo
+      // ===== UPLOAD DO ARQUIVO =====
       const { data, error } = await supabase.storage
         .from(bucket)
         .upload(filePath, file);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro no upload:', error);
+        throw error;
+      }
 
       const { data: urlData } = supabase.storage
         .from(bucket)
         .getPublicUrl(filePath);
 
-      console.log('Upload realizado com sucesso:', urlData.publicUrl);
+      console.log('✅ Upload realizado com sucesso:', urlData.publicUrl);
 
-      // Criar mensagem com mídia
-      const conversationId = await getOrCreateConversation(selectedConversation.otherUserId);
+      // ===== CRIAR CONVERSA SE NECESSÁRIO =====
+      let conversationId = selectedConversation.id;
       
+      if (conversationId.startsWith('new-')) {
+        console.log('🆕 Criando nova conversa para mídia:', selectedConversation.otherUserId);
+        conversationId = await getOrCreateConversation(selectedConversation.otherUserId);
+        
+        // Atualizar o selectedConversation com o ID real
+        setSelectedConversation(prev => ({
+          ...prev,
+          id: conversationId,
+          isNew: false
+        }));
+      }
+      
+      // ===== CRIAR MENSAGEM COM MÍDIA =====
       const messageData = {
         conversation_id: conversationId,
         sender_id: user.id,
@@ -629,10 +720,20 @@ export default function ZRChatSupabase() {
       const { data: message, error: messageError } = await supabase
         .from('messages')
         .insert(messageData)
-        .select()
+        .select('*')
         .single();
 
-      if (messageError) throw messageError;
+      if (messageError) {
+        console.error('❌ Erro ao criar mensagem:', messageError);
+        throw messageError;
+      }
+
+      if (!message) {
+        console.error('❌ Mensagem não foi criada - retorno vazio');
+        throw new Error('Mensagem não foi criada');
+      }
+
+      console.log('✅ Mensagem com mídia criada:', message.id);
 
       // Atualizar mensagem otimista com dados reais
       updateOptimisticMessage(tempId, {
@@ -646,14 +747,14 @@ export default function ZRChatSupabase() {
       playSound("livechat");
 
     } catch (error) {
-      console.error('Erro ao fazer upload:', error);
+      console.error('💥 Erro ao fazer upload:', error);
       
-      // Remover mensagem otimista falha
+      // Remover mensagem otimista em caso de falha
       removeOptimisticMessage(tempId);
       
       toast({
         title: "Erro no upload",
-        description: "Não foi possível enviar o arquivo. Tente novamente.",
+        description: `Não foi possível enviar o arquivo: ${error.message}`,
         variant: "destructive",
       });
     }
