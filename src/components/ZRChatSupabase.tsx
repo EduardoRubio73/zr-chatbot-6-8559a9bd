@@ -391,6 +391,14 @@ export default function ZRChatSupabase() {
 
   const getOrCreateConversation = async (otherUserId: string) => {
     try {
+      // ✔ Verificar se 'user' está definido
+      if (!user?.id) {
+        console.error('Usuário não autenticado - user.id não definido');
+        throw new Error('Usuário não autenticado');
+      }
+
+      console.log('Criando/buscando conversa entre:', user.id, 'e', otherUserId);
+
       // Primeiro, tentar encontrar uma conversa existente entre os dois usuários
       const { data: myParticipants, error: myParticipantsError } = await supabase
         .from('participants')
@@ -420,7 +428,7 @@ export default function ZRChatSupabase() {
       }
 
       // Se não encontrou, criar nova conversa
-      console.log('Criando nova conversa entre:', user.id, 'e', otherUserId);
+      console.log('Criando nova conversa...');
       
       const { data: conversation, error: convError } = await supabase
         .from('conversations')
@@ -431,26 +439,39 @@ export default function ZRChatSupabase() {
         .select()
         .single();
 
-      if (convError) throw convError;
+      // ✔ Verificar se conversa foi criada com sucesso
+      if (convError || !conversation) {
+        console.error('Erro ao criar conversa:', convError);
+        throw convError || new Error('Conversa não criada');
+      }
+
+      console.log('Conversa criada com sucesso:', conversation.id);
 
       // Adicionar participantes
-      const { error: participantError } = await supabase
+      console.log('Adicionando participantes...');
+      const { data: participants, error: participantError } = await supabase
         .from('participants')
         .insert([
           { conversation_id: conversation.id, user_id: user.id },
           { conversation_id: conversation.id, user_id: otherUserId }
-        ]);
+        ])
+        .select();
 
-      if (participantError) throw participantError;
+      // ✔ Verificar se participantes foram inseridos corretamente
+      if (participantError || !participants || participants.length < 2) {
+        console.error('Erro ao adicionar participantes:', participantError);
+        console.error('Participantes retornados:', participants);
+        throw participantError || new Error('Participantes não adicionados corretamente');
+      }
 
-      console.log('Nova conversa criada:', conversation.id);
+      console.log('Participantes adicionados com sucesso:', participants.length);
       
-      // Recarregar lista de conversas para mostrar a nova conversa
+      // ✔ Forçar reload das conversas após criação
       await loadConversations();
-
+      
       return conversation.id;
     } catch (error) {
-      console.error('Erro ao criar/encontrar conversa:', error);
+      console.error('Erro em getOrCreateConversation:', error);
       throw error;
     }
   };
@@ -696,6 +717,9 @@ export default function ZRChatSupabase() {
         return;
       }
 
+      // ✔ Logar conversationId para validação
+      console.log('Tentando arquivar conversa:', conversationId);
+
       // Buscar a conversa real no banco de dados
       const { data: conversation, error: findError } = await supabase
         .from('conversations')
@@ -709,6 +733,7 @@ export default function ZRChatSupabase() {
       }
 
       if (!conversation) {
+        console.error('Conversa não encontrada no banco:', conversationId);
         toast({
           title: "Erro",
           description: "Conversa não encontrada.",
@@ -717,13 +742,34 @@ export default function ZRChatSupabase() {
         return;
       }
 
+      console.log('Conversa encontrada:', conversation);
+
       // Arquivar conversa existente
-      const { error: updateError } = await supabase
+      const { data: updatedConversation, error: updateError } = await supabase
         .from('conversations')
         .update({ status: false } as any)
-        .eq('id', conversation.id);
+        .eq('id', conversation.id)
+        .select(); // ✔ Adicionar select() para confirmar persistência
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Erro no update do status:', updateError);
+        throw updateError;
+      }
+
+      // ✔ Verificar se o update foi bem-sucedido
+      console.log('Update resultado:', updatedConversation);
+      
+      if (!updatedConversation || updatedConversation.length === 0) {
+        console.error('Update não afetou nenhuma linha - ID pode estar incorreto ou RLS impedindo');
+        toast({
+          title: "Erro",
+          description: "Não foi possível arquivar - permissões insuficientes.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      console.log('Conversa arquivada com sucesso no banco:', updatedConversation[0]);
 
       // Remover da lista local
       setConversations(prev => prev.filter(conv => conv.id !== conversationId));
@@ -742,7 +788,7 @@ export default function ZRChatSupabase() {
       console.error('Erro ao arquivar conversa:', error);
       toast({
         title: "Erro",
-        description: "Não foi possível arquivar a conversa.",
+        description: `Não foi possível arquivar a conversa: ${error.message}`,
         variant: "destructive",
       });
     }
@@ -765,6 +811,9 @@ export default function ZRChatSupabase() {
         return;
       }
 
+      // ✔ Logar conversationId para validação
+      console.log('Tentando excluir conversa:', conversationId);
+
       // Buscar a conversa real no banco de dados
       const { data: conversation, error: findError } = await supabase
         .from('conversations')
@@ -777,36 +826,53 @@ export default function ZRChatSupabase() {
         throw findError;
       }
 
-      if (conversation) {
-        // Deletar todas as mensagens da conversa
-        const { error: messagesError } = await supabase
-          .from('messages')
-          .delete()
-          .eq('conversation_id', conversation.id);
+      if (!conversation) {
+        console.error('Conversa não encontrada para exclusão:', conversationId);
+        toast({
+          title: "Erro",
+          description: "Conversa não encontrada.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-        if (messagesError) {
-          console.error('Erro ao deletar mensagens:', messagesError);
-          // Continuar mesmo se houver erro nas mensagens
+      console.log('Conversa encontrada para exclusão:', conversation.id);
+
+      // ✔ Usar Promise.all para deletar em paralelo com controle de erros
+      try {
+        const deletePromises = [
+          supabase.from('messages').delete().eq('conversation_id', conversation.id),
+          supabase.from('participants').delete().eq('conversation_id', conversation.id),
+          supabase.from('conversations').delete().eq('id', conversation.id)
+        ];
+
+        const results = await Promise.all(deletePromises);
+        
+        // ✔ Verificar erros individualmente e reportar com mais clareza
+        const [messagesResult, participantsResult, conversationResult] = results;
+        
+        if (messagesResult.error) {
+          console.error('Erro ao deletar mensagens:', messagesResult.error);
+        } else {
+          console.log('Mensagens deletadas com sucesso');
+        }
+        
+        if (participantsResult.error) {
+          console.error('Erro ao deletar participantes:', participantsResult.error);
+        } else {
+          console.log('Participantes deletados com sucesso');
+        }
+        
+        if (conversationResult.error) {
+          console.error('Erro ao deletar conversa:', conversationResult.error);
+          throw conversationResult.error; // Este é crítico, se falhar deve parar
+        } else {
+          console.log('Conversa deletada com sucesso');
         }
 
-        // Deletar participantes
-        const { error: participantsError } = await supabase
-          .from('participants')
-          .delete()
-          .eq('conversation_id', conversation.id);
-
-        if (participantsError) {
-          console.error('Erro ao deletar participantes:', participantsError);
-          // Continuar mesmo se houver erro nos participantes
-        }
-
-        // Deletar a conversa
-        const { error: conversationError } = await supabase
-          .from('conversations')
-          .delete()
-          .eq('id', conversation.id);
-
-        if (conversationError) throw conversationError;
+      } catch (parallelError) {
+        console.error('Erro durante exclusão paralela:', parallelError);
+        throw parallelError;
       }
 
       // Remover da lista local
@@ -817,6 +883,8 @@ export default function ZRChatSupabase() {
         setSelectedConversation(null);
       }
 
+      console.log('Conversa excluída com sucesso da lista local');
+
       toast({
         title: "Sucesso",
         description: "Conversa excluída com sucesso!",
@@ -826,7 +894,7 @@ export default function ZRChatSupabase() {
       console.error('Erro ao excluir conversa:', error);
       toast({
         title: "Erro",
-        description: "Não foi possível excluir a conversa.",
+        description: `Não foi possível excluir a conversa: ${error.message}`,
         variant: "destructive",
       });
     }
