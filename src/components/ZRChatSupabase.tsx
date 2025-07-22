@@ -237,30 +237,47 @@ export default function ZRChatSupabase() {
       // Limpar mensagens imediatamente ao trocar de conversa
       setMessages([]);
       
-      // Usar mensagens mock para evitar problemas de RLS
-      const mockMessages = [
-        {
-          id: 1,
-          message: "Olá! Como você está?",
-          sender: "other",
-          created_at: new Date(Date.now() - 300000).toISOString(),
-          isRead: true
-        },
-        {
-          id: 2,
-          message: "Oi! Estou bem, obrigado! E você?",
-          sender: "me",
-          created_at: new Date(Date.now() - 120000).toISOString(),
-          isRead: true
-        }
-      ];
-
-      // Simular um pequeno delay para mostrar que está carregando
-      setTimeout(() => {
-        setMessages(mockMessages);
-      }, 50);
+      // Se é uma conversa nova, não carregar mensagens
+      if (conversationId.startsWith('new-')) {
+        console.log('Nenhuma conversa existente encontrada, mensagens em branco até enviar primeira mensagem');
+        return;
+      }
       
-      console.log('Mensagens carregadas com sucesso');
+      // Buscar mensagens reais da conversa
+      const { data: messagesData, error: messagesError } = await supabase
+        .from('messages')
+        .select(`
+          id,
+          text,
+          audio_url,
+          image_url,
+          video_url,
+          sent_at,
+          is_read,
+          sender_id
+        `)
+        .eq('conversation_id', conversationId)
+        .order('sent_at', { ascending: true });
+
+      if (messagesError) {
+        console.error('Erro ao carregar mensagens:', messagesError);
+        return;
+      }
+
+      // Transformar mensagens para o formato esperado
+      const formattedMessages = (messagesData || []).map(msg => ({
+        id: msg.id,
+        message: msg.text || '',
+        audio_url: msg.audio_url,
+        image_url: msg.image_url,
+        video_url: msg.video_url,
+        sender: msg.sender_id === user.id ? 'me' : 'other',
+        created_at: msg.sent_at,
+        isRead: msg.is_read
+      }));
+
+      setMessages(formattedMessages);
+      console.log('Mensagens carregadas com sucesso:', formattedMessages.length);
     } catch (error) {
       console.error('Erro ao carregar mensagens:', error);
     }
@@ -502,7 +519,7 @@ export default function ZRChatSupabase() {
         .insert({
           conversation_id: conversationId,
           sender_id: user.id,
-          message: sanitizedMessage
+          text: sanitizedMessage
         })
         .select()
         .single();
