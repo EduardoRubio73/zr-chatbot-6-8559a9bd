@@ -107,7 +107,7 @@ export default function ZRChatSupabase() {
             id,
             is_group,
             last_message_at,
-            is_archived,
+            status,
             groups (
               name,
               avatar_url
@@ -115,7 +115,7 @@ export default function ZRChatSupabase() {
           )
         `)
         .eq('user_id', user.id)
-        .eq('conversations.is_archived', 'false'); // Apenas conversas não arquivadas
+        .eq('conversations.status', true); // Apenas conversas ativas
 
       if (participantsError) {
         console.log('Erro ao buscar conversas:', participantsError);
@@ -176,19 +176,6 @@ export default function ZRChatSupabase() {
         }
       }
 
-      // Adicionar IARA como opção especial
-      realConversations.unshift({
-        id: `iara_${user.id}`,
-        name: 'IARA',
-        avatar: 'https://ui-avatars.com/api/?name=IARA&background=FF6B6B&color=fff',
-        lastMessage: 'Assistente de IA disponível...',
-        timestamp: 'agora',
-        unreadCount: 0,
-        isOnline: true,
-        isIARA: true,
-        isGroup: false
-      });
-
       // Buscar todos os usuários para criar opções de novas conversas
       const { data: allUsers, error: usersError } = await supabase
         .from('users')
@@ -243,75 +230,12 @@ export default function ZRChatSupabase() {
     }
   };
 
-  const loadIaraMessages = async (conversationId: string) => {
-    if (!conversationId.startsWith('iara_') || !user) {
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('n8n_conversations')
-        .select('message')
-        .eq('session_id', conversationId)
-        .order('id', { ascending: true });
-
-      if (error) {
-        console.error('Erro ao carregar mensagens da IARA:', error);
-        toast({
-          title: "Erro",
-          description: "Não foi possível carregar mensagens anteriores da IARA",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      if (data && data.length > 0) {
-        const formattedMessages = data.map((item: any, index: number) => {
-          const message = item.message;
-          const isUserMessage = message.user_id === user.id;
-          return {
-            id: `${conversationId}_${index}`,
-            message: isUserMessage ? message.message : (message.output || message.content || message.response || message.text || message.message || "Mensagem recebida"),
-            sender: isUserMessage ? "me" : "other",
-            created_at: new Date(message.timestamp || Date.now()).toISOString(),
-            isRead: true,
-            sender_name: isUserMessage ? (profile?.name || user.email) : "IARA",
-            sender_avatar: isUserMessage
-              ? (profile?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.name || user.email)}&background=25D366&color=fff`)
-              : `https://ui-avatars.com/api/?name=IARA&background=FF6B6B&color=fff`
-          };
-        });
-
-        setMessages(formattedMessages);
-      } else {
-        setMessages([]);
-      }
-    } catch (error) {
-      console.error('Erro inesperado ao carregar mensagens da IARA:', error);
-      toast({
-        title: "Erro",
-        description: "Erro inesperado ao carregar mensagens da IARA",
-        variant: "destructive"
-      });
-      setMessages([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const loadMessages = async (conversationId: string) => {
     try {
       console.log('📨 Carregando mensagens para conversa:', conversationId);
       
       // Limpar mensagens imediatamente ao trocar de conversa
       setMessages([]);
-      
-      // Se é conversa com IARA, carregar mensagens especiais
-      if (conversationId.startsWith('iara_')) {
-        await loadIaraMessages(conversationId);
-        return;
-      }
       
       // Se é uma conversa nova, não carregar mensagens
       if (conversationId.startsWith('new-')) {
@@ -516,12 +440,12 @@ export default function ZRChatSupabase() {
           conversations!inner(
             id,
             is_group,
-            is_archived
+            status
           )
         `)
         .eq('user_id', user.id)
         .eq('conversations.is_group', false)  
-        .eq('conversations.is_archived', 'false');
+        .eq('conversations.status', true);
 
       if (myConversationsError) {
         console.error('❌ Erro ao buscar minhas conversas:', myConversationsError);
@@ -554,7 +478,7 @@ export default function ZRChatSupabase() {
         .from('conversations')
         .insert({
           is_group: false,
-          is_archived: 'false'
+          status: true
         })
         .select('*')
         .single();
@@ -884,93 +808,69 @@ export default function ZRChatSupabase() {
 
   const handleArchiveConversation = useCallback(async (conversationId: string) => {
     try {
-      console.log('🗃️ Iniciando arquivamento da conversa:', conversationId);
-      
-      setLoading(true);
-
-      // Se é uma conversa nova ou IARA, apenas remover da lista local
-      if (conversationId.startsWith('new-') || conversationId.startsWith('iara_')) {
-        console.log('ℹ️ Removendo conversa não iniciada da lista local');
-        setConversations(prev => prev.filter(conv => conv.id !== conversationId));
-        
-        if (selectedConversation?.id === conversationId) {
-          setSelectedConversation(null);
-          setMessages([]);
-        }
-
+      // Se é uma conversa nova (não existe no banco), não fazer nada
+      if (conversationId.startsWith('new-')) {
         toast({
-          title: "Sucesso",
-          description: "Contato removido da lista!",
+          title: "Aviso",
+          description: "Não é possível arquivar uma conversa que ainda não foi iniciada.",
+          variant: "default",
         });
-        
-        setLoading(false);
         return;
       }
 
-      // Verificar se o usuário está autenticado
-      if (!user?.id) {
-        console.error('❌ Usuário não autenticado');
-        throw new Error('Usuário não autenticado');
-      }
+      // ✔ Logar conversationId para validação
+      console.log('Tentando arquivar conversa:', conversationId);
 
-      // Verificar se a conversa existe primeiro
-      const { data: conversationCheck, error: conversationError } = await supabase
+      // Buscar a conversa real no banco de dados
+      const { data: conversation, error: findError } = await supabase
         .from('conversations')
-        .select('id, is_archived')
+        .select('id, status')
         .eq('id', conversationId)
-        .eq('is_archived', 'false')
-        .maybeSingle();
+        .maybeSingle(); // Usar maybeSingle em vez de single
 
-      if (conversationError) {
-        console.error('❌ Erro ao verificar conversa:', conversationError);
-        throw conversationError;
+      if (findError) {
+        console.error('Erro ao buscar conversa:', findError);
+        throw findError;
       }
 
-      if (!conversationCheck) {
-        console.error('❌ Conversa não encontrada ou já arquivada');
-        throw new Error('Conversa não encontrada ou já arquivada');
+      if (!conversation) {
+        console.error('Conversa não encontrada no banco:', conversationId);
+        toast({
+          title: "Erro",
+          description: "Conversa não encontrada.",
+          variant: "destructive",
+        });
+        return;
       }
 
-      // Verificar se o usuário participa da conversa
-      const { data: participantCheck, error: participantError } = await supabase
-        .from('participants')
-        .select('id')
-        .eq('conversation_id', conversationId)
-        .eq('user_id', user.id)
-        .maybeSingle();
+      console.log('Conversa encontrada:', conversation);
 
-      if (participantError) {
-        console.error('❌ Erro ao verificar participação:', participantError);
-        throw participantError;
-      }
-
-      if (!participantCheck) {
-        console.error('❌ Usuário não participa desta conversa');
-        throw new Error('Você não tem permissão para arquivar esta conversa');
-      }
-
-      console.log('✅ Usuário tem permissão para arquivar a conversa');
-
-      // Arquivar a conversa (alterar is_archived para true)
+      // Arquivar conversa existente
       const { data: updatedConversation, error: updateError } = await supabase
         .from('conversations')
-        .update({ is_archived: 'true' })
-        .eq('id', conversationId)
-        .eq('is_archived', 'false')
-        .select('id, is_archived')
-        .maybeSingle();
+        .update({ status: false } as any)
+        .eq('id', conversation.id)
+        .select(); // ✔ Adicionar select() para confirmar persistência
 
       if (updateError) {
-        console.error('❌ Erro ao arquivar conversa:', updateError);
+        console.error('Erro no update do status:', updateError);
         throw updateError;
       }
 
-      if (!updatedConversation) {
-        console.error('❌ Nenhuma conversa foi arquivada - possível problema de permissão ou conversa já arquivada');
-        throw new Error('Não foi possível arquivar a conversa. Verifique suas permissões');
+      // ✔ Verificar se o update foi bem-sucedido
+      console.log('Update resultado:', updatedConversation);
+      
+      if (!updatedConversation || updatedConversation.length === 0) {
+        console.error('Update não afetou nenhuma linha - ID pode estar incorreto ou RLS impedindo');
+        toast({
+          title: "Erro",
+          description: "Não foi possível arquivar - permissões insuficientes.",
+          variant: "destructive",
+        });
+        return;
       }
 
-      console.log('✅ Conversa arquivada com sucesso:', updatedConversation);
+      console.log('Conversa arquivada com sucesso no banco:', updatedConversation[0]);
 
       // Remover da lista local
       setConversations(prev => prev.filter(conv => conv.id !== conversationId));
@@ -978,7 +878,6 @@ export default function ZRChatSupabase() {
       // Se era a conversa selecionada, limpar seleção
       if (selectedConversation?.id === conversationId) {
         setSelectedConversation(null);
-        setMessages([]);
       }
 
       toast({
@@ -987,142 +886,105 @@ export default function ZRChatSupabase() {
       });
 
     } catch (error) {
-      console.error('💥 Erro ao arquivar conversa:', error);
+      console.error('Erro ao arquivar conversa:', error);
       toast({
         title: "Erro",
         description: `Não foi possível arquivar a conversa: ${error.message}`,
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
-  }, [user?.id, selectedConversation, toast]);
+  }, [selectedConversation, toast]);
 
   const handleDeleteConversation = useCallback(async (conversationId: string) => {
     try {
-      console.log('🗑️ Iniciando exclusão da conversa:', conversationId);
-      
-      setLoading(true);
-
-      // Se é uma conversa nova ou IARA, apenas remover da lista local
-      if (conversationId.startsWith('new-') || conversationId.startsWith('iara_')) {
-        console.log('ℹ️ Removendo conversa não iniciada da lista local');
+      // Se é uma conversa nova (não existe no banco), apenas remover da lista local
+      if (conversationId.startsWith('new-')) {
         setConversations(prev => prev.filter(conv => conv.id !== conversationId));
         
         if (selectedConversation?.id === conversationId) {
           setSelectedConversation(null);
-          setMessages([]);
         }
 
         toast({
           title: "Sucesso",
           description: "Contato removido da lista!",
         });
-        
-        setLoading(false);
         return;
       }
 
-      // Verificar se o usuário está autenticado
-      if (!user?.id) {
-        console.error('❌ Usuário não autenticado');
-        throw new Error('Usuário não autenticado');
-      }
+      // ✔ Logar conversationId para validação
+      console.log('Tentando excluir conversa:', conversationId);
 
-      // Verificar se a conversa existe primeiro
-      const { data: conversationCheck, error: conversationError } = await supabase
+      // Buscar a conversa real no banco de dados
+      const { data: conversation, error: findError } = await supabase
         .from('conversations')
-        .select('id, is_archived')
-        .eq('id', conversationId)
-        .maybeSingle();
-
-      if (conversationError) {
-        console.error('❌ Erro ao verificar conversa:', conversationError);
-        throw conversationError;
-      }
-
-      if (!conversationCheck) {
-        console.error('❌ Conversa não encontrada');
-        throw new Error('Conversa não encontrada');
-      }
-
-      // Verificar se o usuário participa da conversa
-      const { data: participantCheck, error: participantError } = await supabase
-        .from('participants')
         .select('id')
-        .eq('conversation_id', conversationId)
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (participantError) {
-        console.error('❌ Erro ao verificar participação:', participantError);
-        throw participantError;
-      }
-
-      if (!participantCheck) {
-        console.error('❌ Usuário não participa desta conversa');
-        throw new Error('Você não tem permissão para excluir esta conversa');
-      }
-
-      console.log('✅ Usuário tem permissão para excluir a conversa');
-
-      // Executar exclusão em sequência para evitar problemas de foreign key
-      console.log('🔄 Iniciando exclusão sequencial de mensagens, participantes e conversa...');
-      
-      // 1. Excluir mensagens primeiro
-      const { error: messagesError } = await supabase
-        .from('messages')
-        .delete()
-        .eq('conversation_id', conversationId);
-
-      if (messagesError) {
-        console.error('❌ Erro ao excluir mensagens:', messagesError);
-        throw messagesError;
-      }
-      console.log('✅ Mensagens excluídas com sucesso');
-
-      // 2. Excluir participantes
-      const { error: participantsError } = await supabase
-        .from('participants')
-        .delete()
-        .eq('conversation_id', conversationId);
-
-      if (participantsError) {
-        console.error('❌ Erro ao excluir participantes:', participantsError);
-        throw participantsError;
-      }
-      console.log('✅ Participantes excluídos com sucesso');
-
-      // 3. Excluir conversa
-      const { data: deletedConversation, error: conversationDeleteError } = await supabase
-        .from('conversations')
-        .delete()
         .eq('id', conversationId)
-        .select('id')
-        .maybeSingle();
+        .maybeSingle(); // Usar maybeSingle em vez de single
 
-      if (conversationDeleteError) {
-        console.error('❌ Erro ao excluir conversa:', conversationDeleteError);
-        throw conversationDeleteError;
+      if (findError) {
+        console.error('Erro ao buscar conversa:', findError);
+        throw findError;
       }
 
-      if (!deletedConversation) {
-        console.error('❌ Conversa não foi excluída - possível problema de permissão');
-        throw new Error('Não foi possível excluir a conversa. Verifique suas permissões');
+      if (!conversation) {
+        console.error('Conversa não encontrada para exclusão:', conversationId);
+        toast({
+          title: "Erro",
+          description: "Conversa não encontrada.",
+          variant: "destructive",
+        });
+        return;
       }
 
-      console.log('✅ Conversa excluída com sucesso:', deletedConversation);
+      console.log('Conversa encontrada para exclusão:', conversation.id);
 
-      // Remover da lista local apenas se a exclusão da conversa foi bem-sucedida
+      // ✔ Usar Promise.all para deletar em paralelo com controle de erros
+      try {
+        const deletePromises = [
+          supabase.from('messages').delete().eq('conversation_id', conversation.id),
+          supabase.from('participants').delete().eq('conversation_id', conversation.id),
+          supabase.from('conversations').delete().eq('id', conversation.id)
+        ];
+
+        const results = await Promise.all(deletePromises);
+        
+        // ✔ Verificar erros individualmente e reportar com mais clareza
+        const [messagesResult, participantsResult, conversationResult] = results;
+        
+        if (messagesResult.error) {
+          console.error('Erro ao deletar mensagens:', messagesResult.error);
+        } else {
+          console.log('Mensagens deletadas com sucesso');
+        }
+        
+        if (participantsResult.error) {
+          console.error('Erro ao deletar participantes:', participantsResult.error);
+        } else {
+          console.log('Participantes deletados com sucesso');
+        }
+        
+        if (conversationResult.error) {
+          console.error('Erro ao deletar conversa:', conversationResult.error);
+          throw conversationResult.error; // Este é crítico, se falhar deve parar
+        } else {
+          console.log('Conversa deletada com sucesso');
+        }
+
+      } catch (parallelError) {
+        console.error('Erro durante exclusão paralela:', parallelError);
+        throw parallelError;
+      }
+
+      // Remover da lista local
       setConversations(prev => prev.filter(conv => conv.id !== conversationId));
       
       // Se era a conversa selecionada, limpar seleção
       if (selectedConversation?.id === conversationId) {
         setSelectedConversation(null);
-        setMessages([]);
       }
 
-      console.log('✅ Conversa excluída completamente');
+      console.log('Conversa excluída com sucesso da lista local');
 
       toast({
         title: "Sucesso",
@@ -1130,16 +992,14 @@ export default function ZRChatSupabase() {
       });
 
     } catch (error) {
-      console.error('💥 Erro ao excluir conversa:', error);
+      console.error('Erro ao excluir conversa:', error);
       toast({
         title: "Erro",
         description: `Não foi possível excluir a conversa: ${error.message}`,
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
-  }, [user?.id, selectedConversation, toast]);
+  }, [selectedConversation, toast]);
 
   const handleConversationSelect = useCallback((conv) => {
     // Limpar mensagens imediatamente ao selecionar nova conversa
@@ -1277,7 +1137,6 @@ export default function ZRChatSupabase() {
                     <h3 className="font-medium text-foreground truncate">
                       {conv.name}
                       {conv.isGroup && <span className="ml-1 text-xs">👥</span>}
-                      {conv.isIARA && <span className="ml-1 text-xs">🤖</span>}
                     </h3>
                     <span className="text-xs text-muted-foreground">{conv.timestamp}</span>
                   </div>
@@ -1313,7 +1172,7 @@ export default function ZRChatSupabase() {
 
             <section 
               className={`flex-1 overflow-y-auto p-4 chat-body ${
-                selectedConversation.isIARA ? 'chat-bg-iara' : 'chat-bg-pattern'
+                selectedConversation.name === 'IARA' ? 'chat-bg-iara' : 'chat-bg-pattern'
               }`}
             >
               <div className="flex flex-col gap-2 w-full">
