@@ -107,7 +107,7 @@ export default function ZRChatSupabase() {
             id,
             is_group,
             last_message_at,
-            status,
+            is_archived,
             groups (
               name,
               avatar_url
@@ -115,7 +115,7 @@ export default function ZRChatSupabase() {
           )
         `)
         .eq('user_id', user.id)
-        .eq('conversations.status', true); // Apenas conversas ativas
+        .eq('conversations.is_archived', 'false'); // Apenas conversas não arquivadas
 
       if (participantsError) {
         console.log('Erro ao buscar conversas:', participantsError);
@@ -176,6 +176,19 @@ export default function ZRChatSupabase() {
         }
       }
 
+      // Adicionar IARA como opção especial
+      realConversations.unshift({
+        id: `iara_${user.id}`,
+        name: 'IARA',
+        avatar: 'https://ui-avatars.com/api/?name=IARA&background=FF6B6B&color=fff',
+        lastMessage: 'Assistente de IA disponível...',
+        timestamp: 'agora',
+        unreadCount: 0,
+        isOnline: true,
+        isIARA: true,
+        isGroup: false
+      });
+
       // Buscar todos os usuários para criar opções de novas conversas
       const { data: allUsers, error: usersError } = await supabase
         .from('users')
@@ -230,12 +243,75 @@ export default function ZRChatSupabase() {
     }
   };
 
+  const loadIaraMessages = async (conversationId: string) => {
+    if (!conversationId.startsWith('iara_') || !user) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('n8n_conversations')
+        .select('message')
+        .eq('session_id', conversationId)
+        .order('id', { ascending: true });
+
+      if (error) {
+        console.error('Erro ao carregar mensagens da IARA:', error);
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar mensagens anteriores da IARA",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (data && data.length > 0) {
+        const formattedMessages = data.map((item: any, index: number) => {
+          const message = item.message;
+          const isUserMessage = message.user_id === user.id;
+          return {
+            id: `${conversationId}_${index}`,
+            message: isUserMessage ? message.message : (message.output || message.content || message.response || message.text || message.message || "Mensagem recebida"),
+            sender: isUserMessage ? "me" : "other",
+            created_at: new Date(message.timestamp || Date.now()).toISOString(),
+            isRead: true,
+            sender_name: isUserMessage ? (profile?.name || user.email) : "IARA",
+            sender_avatar: isUserMessage
+              ? (profile?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.name || user.email)}&background=25D366&color=fff`)
+              : `https://ui-avatars.com/api/?name=IARA&background=FF6B6B&color=fff`
+          };
+        });
+
+        setMessages(formattedMessages);
+      } else {
+        setMessages([]);
+      }
+    } catch (error) {
+      console.error('Erro inesperado ao carregar mensagens da IARA:', error);
+      toast({
+        title: "Erro",
+        description: "Erro inesperado ao carregar mensagens da IARA",
+        variant: "destructive"
+      });
+      setMessages([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const loadMessages = async (conversationId: string) => {
     try {
       console.log('📨 Carregando mensagens para conversa:', conversationId);
       
       // Limpar mensagens imediatamente ao trocar de conversa
       setMessages([]);
+      
+      // Se é conversa com IARA, carregar mensagens especiais
+      if (conversationId.startsWith('iara_')) {
+        await loadIaraMessages(conversationId);
+        return;
+      }
       
       // Se é uma conversa nova, não carregar mensagens
       if (conversationId.startsWith('new-')) {
@@ -440,12 +516,12 @@ export default function ZRChatSupabase() {
           conversations!inner(
             id,
             is_group,
-            status
+            is_archived
           )
         `)
         .eq('user_id', user.id)
         .eq('conversations.is_group', false)  
-        .eq('conversations.status', true);
+        .eq('conversations.is_archived', 'false');
 
       if (myConversationsError) {
         console.error('❌ Erro ao buscar minhas conversas:', myConversationsError);
@@ -478,7 +554,7 @@ export default function ZRChatSupabase() {
         .from('conversations')
         .insert({
           is_group: false,
-          status: true
+          is_archived: 'false'
         })
         .select('*')
         .single();
@@ -812,8 +888,8 @@ export default function ZRChatSupabase() {
       
       setLoading(true);
 
-      // Se é uma conversa nova (não existe no banco), apenas remover da lista local
-      if (conversationId.startsWith('new-')) {
+      // Se é uma conversa nova ou IARA, apenas remover da lista local
+      if (conversationId.startsWith('new-') || conversationId.startsWith('iara_')) {
         console.log('ℹ️ Removendo conversa não iniciada da lista local');
         setConversations(prev => prev.filter(conv => conv.id !== conversationId));
         
@@ -840,9 +916,9 @@ export default function ZRChatSupabase() {
       // Verificar se a conversa existe primeiro
       const { data: conversationCheck, error: conversationError } = await supabase
         .from('conversations')
-        .select('id, status')
+        .select('id, is_archived')
         .eq('id', conversationId)
-        .eq('status', true)
+        .eq('is_archived', 'false')
         .maybeSingle();
 
       if (conversationError) {
@@ -875,13 +951,13 @@ export default function ZRChatSupabase() {
 
       console.log('✅ Usuário tem permissão para arquivar a conversa');
 
-      // Arquivar a conversa (alterar status para false)
+      // Arquivar a conversa (alterar is_archived para true)
       const { data: updatedConversation, error: updateError } = await supabase
         .from('conversations')
-        .update({ status: false })
+        .update({ is_archived: 'true' })
         .eq('id', conversationId)
-        .eq('status', true)
-        .select('id, status')
+        .eq('is_archived', 'false')
+        .select('id, is_archived')
         .maybeSingle();
 
       if (updateError) {
@@ -928,8 +1004,8 @@ export default function ZRChatSupabase() {
       
       setLoading(true);
 
-      // Se é uma conversa nova (não existe no banco), apenas remover da lista local
-      if (conversationId.startsWith('new-')) {
+      // Se é uma conversa nova ou IARA, apenas remover da lista local
+      if (conversationId.startsWith('new-') || conversationId.startsWith('iara_')) {
         console.log('ℹ️ Removendo conversa não iniciada da lista local');
         setConversations(prev => prev.filter(conv => conv.id !== conversationId));
         
@@ -956,7 +1032,7 @@ export default function ZRChatSupabase() {
       // Verificar se a conversa existe primeiro
       const { data: conversationCheck, error: conversationError } = await supabase
         .from('conversations')
-        .select('id, status')
+        .select('id, is_archived')
         .eq('id', conversationId)
         .maybeSingle();
 
@@ -1201,6 +1277,7 @@ export default function ZRChatSupabase() {
                     <h3 className="font-medium text-foreground truncate">
                       {conv.name}
                       {conv.isGroup && <span className="ml-1 text-xs">👥</span>}
+                      {conv.isIARA && <span className="ml-1 text-xs">🤖</span>}
                     </h3>
                     <span className="text-xs text-muted-foreground">{conv.timestamp}</span>
                   </div>
@@ -1236,7 +1313,7 @@ export default function ZRChatSupabase() {
 
             <section 
               className={`flex-1 overflow-y-auto p-4 chat-body ${
-                selectedConversation.name === 'IARA' ? 'chat-bg-iara' : 'chat-bg-pattern'
+                selectedConversation.isIARA ? 'chat-bg-iara' : 'chat-bg-pattern'
               }`}
             >
               <div className="flex flex-col gap-2 w-full">
