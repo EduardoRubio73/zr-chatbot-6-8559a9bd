@@ -30,6 +30,10 @@ export default function ChatHeader({
 }: ChatHeaderProps) {
   if (!selectedConversation) return null;
 
+  // Safely get the display name and handle undefined/null values
+  const displayName = selectedConversation.displayName || selectedConversation.name || 'Usuário';
+  const avatarFallback = displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase();
+
   return (
     <header className="p-4 border-b border-border bg-background/80 backdrop-blur-sm">
       <div className="flex justify-between items-center">
@@ -41,17 +45,19 @@ export default function ChatHeader({
           )}
           
           <Avatar className="h-10 w-10 cursor-pointer" onClick={() => onAvatarClick(selectedConversation)}>
-            <AvatarImage src={selectedConversation.avatar} alt={selectedConversation.name} />
-            <AvatarFallback>{selectedConversation.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+            <AvatarImage src={selectedConversation.avatar} alt={displayName} />
+            <AvatarFallback>{avatarFallback}</AvatarFallback>
           </Avatar>
           
           <div>
             <h2 className="font-semibold text-foreground">
-              {selectedConversation.name}
-              {selectedConversation.isIARA}
+              {displayName}
+              {selectedConversation.isIARA && (
+                <span className="ml-2 text-xs bg-red-500 text-white px-2 py-1 rounded">AI</span>
+              )}
             </h2>
             <p className="text-sm text-muted-foreground">
-              {selectedConversation.isOnline ? 'online' : 'última vez hoje às 14:30'}
+              {selectedConversation.isOnline || selectedConversation.is_online ? 'online' : 'última vez hoje às 14:30'}
             </p>
           </div>
         </div>

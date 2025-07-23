@@ -1,4 +1,3 @@
-
 import React, {
   useState,
   useEffect,
@@ -136,7 +135,7 @@ const ZRChat = () => {
     try {
       const { error } = await supabase
         .from('conversations')
-        .update({ is_archived: archive })
+        .update({ is_archived: archive.toString() })
         .eq('id', conversationId);
 
       if (error) {
@@ -166,7 +165,7 @@ const ZRChat = () => {
           )
         `)
         .eq('participants.user_id', user.id)
-        .eq('is_archived', showArchivedConversations);
+        .eq('is_archived', showArchivedConversations.toString());
 
       if (error) {
         console.error('Error fetching conversations:', error);
@@ -179,7 +178,7 @@ const ZRChat = () => {
         id: conv.id,
         is_group: conv.is_group,
         groups: conv.groups,
-        is_archived: conv.is_archived,
+        is_archived: conv.is_archived === 'true',
         last_message_at: conv.last_message_at,
         participants: conv.participants || []
       })).sort((a, b) => {
@@ -196,7 +195,7 @@ const ZRChat = () => {
           : conv.participants.find((p: any) => p.user_id !== user?.id)?.users?.avatar_url,
         unread_count: conv.participants.find((p: any) => p.user_id === user?.id)?.unread_count || 0,
         is_online: !conv.is_group && conv.participants.find((p: any) => p.user_id !== user?.id)?.users?.is_online,
-        is_archived: conv.is_archived || false
+        is_archived: conv.is_archived
       }));
     },
     enabled: !!user?.id,
@@ -282,7 +281,7 @@ const ZRChat = () => {
           participants!inner(user_id)
         `)
         .eq('is_group', false)
-        .eq('is_archived', false);
+        .eq('is_archived', 'false');
 
       const existing = existingConversation?.find(conv => {
         const participantIds = conv.participants.map((p: any) => p.user_id);
@@ -299,7 +298,7 @@ const ZRChat = () => {
         .from('conversations')
         .insert({
           is_group: false,
-          is_archived: false
+          is_archived: 'false'
         })
         .select()
         .single();
@@ -445,7 +444,7 @@ const ZRChat = () => {
         .insert({
           is_group: true,
           group_id: newGroup.id,
-          is_archived: false
+          is_archived: 'false'
         })
         .select()
         .single();
@@ -594,7 +593,7 @@ const ZRChat = () => {
             <MessageInput
               newMessage={newMessage}
               setNewMessage={setNewMessage}
-              onSendMessage={sendMessage}
+              onSendMessage={() => {}} // This will be implemented in MessageInput
               isRecording={isRecording}
               onStartRecording={startRecording}
               onStopRecording={stopRecording}
