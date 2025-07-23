@@ -104,8 +104,8 @@ const ZRChat = () => {
   const [showUserModal, setShowUserModal] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [groupName, setGroupName] = useState('');
-  const [isPlaying, setIsPlaying<{ [key: string]: boolean }>({});
-  const [audioElements, setAudioElements<{ [key: string]: HTMLAudioElement }>({});
+  const [isPlaying, setIsPlaying] = useState<{ [key: string]: boolean }>({});
+  const [audioElements, setAudioElements] = useState<{ [key: string]: HTMLAudioElement }>({});
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileUser, setProfileUser] = useState<any>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -172,7 +172,9 @@ const ZRChat = () => {
         return [];
       }
 
-      return (data || []).map((conv: any) => ({
+      if (!data) return [];
+
+      return data.map((conv: any) => ({
         id: conv.id,
         is_group: conv.is_group,
         groups: conv.groups,
@@ -378,7 +380,7 @@ const ZRChat = () => {
         throw uploadError;
       }
 
-      const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/chat-imagens/${filePath}`;
+      const url = `https://bwplxdikxtnsoavmijpi.supabase.co/storage/v1/object/public/chat-imagens/${filePath}`;
       await sendMessage(url, 'image');
     } catch (error) {
       console.error("Error uploading file:", error);
@@ -412,7 +414,7 @@ const ZRChat = () => {
         throw uploadError;
       }
 
-      const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/chat-videos/${filePath}`;
+      const url = `https://bwplxdikxtnsoavmijpi.supabase.co/storage/v1/object/public/chat-videos/${filePath}`;
       await sendMessage(url, 'video');
     } catch (error) {
       console.error("Error uploading file:", error);
