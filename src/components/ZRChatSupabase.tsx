@@ -293,19 +293,19 @@ const ZRChatSupabase = () => {
                 <div className="flex items-center gap-2">
                   <Button 
                     variant="ghost" 
-                    size="sm"
-                    className="h-8 w-8 p-0"
+                    size="icon"
                     title="Arquivar conversa" 
                     onClick={() => handleArchiveConversation(selectedConversation.id)}
+                    className="h-10 w-10"
                   >
                     <Archive className="h-4 w-4" />
                   </Button>
                   <Button 
                     variant="ghost" 
-                    size="sm"
-                    className="h-8 w-8 p-0"
+                    size="icon"
                     title="Excluir conversa" 
                     onClick={() => handleDeleteConversation(selectedConversation.id)}
+                    className="h-10 w-10"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
