@@ -19,25 +19,25 @@ export type Database = {
           created_at: string | null
           group_id: string | null
           id: string
+          is_archived: string | null
           is_group: boolean | null
           last_message_at: string | null
-          status: boolean
         }
         Insert: {
           created_at?: string | null
           group_id?: string | null
           id?: string
+          is_archived?: string | null
           is_group?: boolean | null
           last_message_at?: string | null
-          status?: boolean
         }
         Update: {
           created_at?: string | null
           group_id?: string | null
           id?: string
+          is_archived?: string | null
           is_group?: boolean | null
           last_message_at?: string | null
-          status?: boolean
         }
         Relationships: [
           {
@@ -126,7 +126,6 @@ export type Database = {
           is_read: boolean | null
           sender_id: string | null
           sent_at: string | null
-          session_id: string | null
           text: string | null
           video_url: string | null
         }
@@ -138,7 +137,6 @@ export type Database = {
           is_read?: boolean | null
           sender_id?: string | null
           sent_at?: string | null
-          session_id?: string | null
           text?: string | null
           video_url?: string | null
         }
@@ -150,7 +148,6 @@ export type Database = {
           is_read?: boolean | null
           sender_id?: string | null
           sent_at?: string | null
-          session_id?: string | null
           text?: string | null
           video_url?: string | null
         }
