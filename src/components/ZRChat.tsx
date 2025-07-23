@@ -546,9 +546,11 @@ export default function ZRChat() {
   const handleArchiveConversation = async (conversationId: string) => {
     console.log('=== INICIANDO ARQUIVAMENTO ===');
     console.log('Conversation ID:', conversationId);
+    console.log('User ID:', user?.id);
+    console.log('User object:', user);
 
-    if (!user) {
-      console.error('Usuário não autenticado');
+    if (!user || !user.id) {
+      console.error('Usuário não autenticado ou ID não encontrado');
       toast({
         title: "Erro",
         description: "Usuário não autenticado",
@@ -558,6 +560,8 @@ export default function ZRChat() {
     }
 
     const conversation = conversations.find(conv => conv.id === conversationId);
+    console.log('Conversa encontrada:', conversation);
+
     if (!conversation) {
       console.error('Conversa não encontrada:', conversationId);
       toast({
@@ -569,6 +573,7 @@ export default function ZRChat() {
     }
 
     if (conversation.isIARA) {
+      console.log('Tentativa de arquivar conversa com IARA');
       toast({
         title: "Ação não permitida",
         description: "Não é possível arquivar a conversa com IARA",
@@ -581,7 +586,7 @@ export default function ZRChat() {
 
     try {
       if (conversationId.startsWith('conv_')) {
-        console.log('Arquivando conversa mock');
+        console.log('Arquivando conversa mock (conv_)');
         setArchivedConversations(prev => [...prev, { ...conversation, is_archived: true }]);
         setConversations(prev => prev.filter(conv => conv.id !== conversationId));
 
@@ -596,15 +601,29 @@ export default function ZRChat() {
         return;
       }
 
+      console.log('Verificando participação do usuário na conversa...');
       const { data: participantData, error: participantError } = await supabase
         .from('participants')
-        .select('id')
+        .select('id, user_id, conversation_id')
         .eq('conversation_id', conversationId)
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (participantError || !participantData) {
+      console.log('Dados do participante:', participantData);
+      console.log('Erro do participante:', participantError);
+
+      if (participantError) {
         console.error('Erro ao verificar participação:', participantError);
+        toast({
+          title: "Erro",
+          description: "Erro ao verificar participação na conversa",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (!participantData) {
+        console.error('Usuário não participa desta conversa');
         toast({
           title: "Erro",
           description: "Você não participa desta conversa",
@@ -613,6 +632,7 @@ export default function ZRChat() {
         return;
       }
 
+      console.log('Atualizando conversa para arquivada...');
       const { error: updateError } = await supabase
         .from('conversations')
         .update({ is_archived: true })
@@ -628,6 +648,7 @@ export default function ZRChat() {
         return;
       }
 
+      console.log('Conversa arquivada com sucesso!');
       setArchivedConversations(prev => [...prev, { ...conversation, is_archived: true }]);
       setConversations(prev => prev.filter(conv => conv.id !== conversationId));
 
@@ -655,9 +676,10 @@ export default function ZRChat() {
   const handleUnarchiveConversation = async (conversationId: string) => {
     console.log('=== INICIANDO DESARQUIVAMENTO ===');
     console.log('Conversation ID:', conversationId);
+    console.log('User ID:', user?.id);
 
-    if (!user) {
-      console.error('Usuário não autenticado');
+    if (!user || !user.id) {
+      console.error('Usuário não autenticado ou ID não encontrado');
       toast({
         title: "Erro",
         description: "Usuário não autenticado",
@@ -667,6 +689,8 @@ export default function ZRChat() {
     }
 
     const conversation = archivedConversations.find(conv => conv.id === conversationId);
+    console.log('Conversa arquivada encontrada:', conversation);
+
     if (!conversation) {
       console.error('Conversa arquivada não encontrada:', conversationId);
       toast({
@@ -678,6 +702,7 @@ export default function ZRChat() {
     }
 
     if (conversation.isIARA) {
+      console.log('Tentativa de desarquivar conversa com IARA');
       toast({
         title: "Ação não permitida",
         description: "Não é possível desarquivar a conversa com IARA",
@@ -690,7 +715,7 @@ export default function ZRChat() {
 
     try {
       if (conversationId.startsWith('conv_')) {
-        console.log('Desarquivando conversa mock');
+        console.log('Desarquivando conversa mock (conv_)');
         setConversations(prev => [...prev, { ...conversation, is_archived: false }]);
         setArchivedConversations(prev => prev.filter(conv => conv.id !== conversationId));
 
@@ -705,15 +730,29 @@ export default function ZRChat() {
         return;
       }
 
+      console.log('Verificando participação do usuário na conversa...');
       const { data: participantData, error: participantError } = await supabase
         .from('participants')
-        .select('id')
+        .select('id, user_id, conversation_id')
         .eq('conversation_id', conversationId)
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (participantError || !participantData) {
+      console.log('Dados do participante:', participantData);
+      console.log('Erro do participante:', participantError);
+
+      if (participantError) {
         console.error('Erro ao verificar participação:', participantError);
+        toast({
+          title: "Erro",
+          description: "Erro ao verificar participação na conversa",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (!participantData) {
+        console.error('Usuário não participa desta conversa');
         toast({
           title: "Erro",
           description: "Você não participa desta conversa",
@@ -722,6 +761,7 @@ export default function ZRChat() {
         return;
       }
 
+      console.log('Atualizando conversa para desarquivada...');
       const { error: updateError } = await supabase
         .from('conversations')
         .update({ is_archived: false })
@@ -737,6 +777,7 @@ export default function ZRChat() {
         return;
       }
 
+      console.log('Conversa desarquivada com sucesso!');
       setConversations(prev => [...prev, { ...conversation, is_archived: false }]);
       setArchivedConversations(prev => prev.filter(conv => conv.id !== conversationId));
 
@@ -764,9 +805,10 @@ export default function ZRChat() {
   const handleDeleteConversation = async (conversationId: string) => {
     console.log('=== INICIANDO EXCLUSÃO ===');
     console.log('Conversation ID:', conversationId);
+    console.log('User ID:', user?.id);
 
-    if (!user) {
-      console.error('Usuário não autenticado');
+    if (!user || !user.id) {
+      console.error('Usuário não autenticado ou ID não encontrado');
       toast({
         title: "Erro",
         description: "Usuário não autenticado",
@@ -777,6 +819,8 @@ export default function ZRChat() {
 
     const conversation = conversations.find(conv => conv.id === conversationId) ||
                        archivedConversations.find(conv => conv.id === conversationId);
+
+    console.log('Conversa encontrada:', conversation);
 
     if (!conversation) {
       console.error('Conversa não encontrada:', conversationId);
@@ -789,6 +833,7 @@ export default function ZRChat() {
     }
 
     if (conversation.isIARA) {
+      console.log('Tentativa de excluir conversa com IARA');
       toast({
         title: "Ação não permitida",
         description: "Não é possível excluir a conversa com IARA",
@@ -806,7 +851,7 @@ export default function ZRChat() {
 
     try {
       if (conversationId.startsWith('conv_')) {
-        console.log('Excluindo conversa mock');
+        console.log('Excluindo conversa mock (conv_)');
         setConversations(prev => prev.filter(conv => conv.id !== conversationId));
         setArchivedConversations(prev => prev.filter(conv => conv.id !== conversationId));
 
@@ -821,15 +866,29 @@ export default function ZRChat() {
         return;
       }
 
+      console.log('Verificando participação do usuário na conversa...');
       const { data: participantData, error: participantError } = await supabase
         .from('participants')
-        .select('id')
+        .select('id, user_id, conversation_id')
         .eq('conversation_id', conversationId)
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (participantError || !participantData) {
+      console.log('Dados do participante:', participantData);
+      console.log('Erro do participante:', participantError);
+
+      if (participantError) {
         console.error('Erro ao verificar participação:', participantError);
+        toast({
+          title: "Erro",
+          description: "Erro ao verificar participação na conversa",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (!participantData) {
+        console.error('Usuário não participa desta conversa');
         toast({
           title: "Erro",
           description: "Você não participa desta conversa",
@@ -838,49 +897,56 @@ export default function ZRChat() {
         return;
       }
 
-      try {
-        const { error: messagesError } = await supabase
-          .from('messages')
-          .delete()
-          .eq('conversation_id', conversationId);
+      console.log('Iniciando exclusão sequencial...');
+      
+      // Primeiro, excluir todas as mensagens da conversa
+      console.log('Excluindo mensagens...');
+      const { error: messagesError } = await supabase
+        .from('messages')
+        .delete()
+        .eq('conversation_id', conversationId);
 
-        if (messagesError) throw messagesError;
-
-        const { error: participantsError } = await supabase
-          .from('participants')
-          .delete()
-          .eq('conversation_id', conversationId);
-
-        if (participantsError) throw participantsError;
-
-        const { error: conversationError } = await supabase
-          .from('conversations')
-          .delete()
-          .eq('id', conversationId);
-
-        if (conversationError) throw conversationError;
-
-        setConversations(prev => prev.filter(conv => conv.id !== conversationId));
-        setArchivedConversations(prev => prev.filter(conv => conv.id !== conversationId));
-
-        if (selectedConversation?.id === conversationId) {
-          setSelectedConversation(null);
-        }
-
-        toast({
-          title: "Conversa excluída",
-          description: `Conversa com ${conversation.name} foi excluída permanentemente`
-        });
-
-      } catch (error) {
-        console.error('Erro na transação de exclusão:', error);
-        toast({
-          title: "Erro",
-          description: "Erro ao excluir conversa do banco de dados",
-          variant: "destructive"
-        });
-        throw error;
+      if (messagesError) {
+        console.error('Erro ao excluir mensagens:', messagesError);
+        throw messagesError;
       }
+
+      // Segundo, excluir todos os participantes
+      console.log('Excluindo participantes...');
+      const { error: participantsError } = await supabase
+        .from('participants')
+        .delete()
+        .eq('conversation_id', conversationId);
+
+      if (participantsError) {
+        console.error('Erro ao excluir participantes:', participantsError);
+        throw participantsError;
+      }
+
+      // Por último, excluir a conversa
+      console.log('Excluindo conversa...');
+      const { error: conversationError } = await supabase
+        .from('conversations')
+        .delete()
+        .eq('id', conversationId);
+
+      if (conversationError) {
+        console.error('Erro ao excluir conversa:', conversationError);
+        throw conversationError;
+      }
+
+      console.log('Conversa excluída com sucesso!');
+      setConversations(prev => prev.filter(conv => conv.id !== conversationId));
+      setArchivedConversations(prev => prev.filter(conv => conv.id !== conversationId));
+
+      if (selectedConversation?.id === conversationId) {
+        setSelectedConversation(null);
+      }
+
+      toast({
+        title: "Conversa excluída",
+        description: `Conversa com ${conversation.name} foi excluída permanentemente`
+      });
 
     } catch (error) {
       console.error('Erro inesperado ao excluir conversa:', error);
@@ -1071,7 +1137,7 @@ export default function ZRChat() {
       };
 
       recorder.onstop = async () => {
-        const videoBlob =eatures new Blob(chunks, { type: 'video/webm' });
+        const videoBlob = new Blob(chunks, { type: 'video/webm' });
         const videoFile = videoBlob as any;
         videoFile.name = `video_${Date.now()}.webm`;
         await handleMediaUpload(videoFile, 'video');
@@ -1452,7 +1518,7 @@ export default function ZRChat() {
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" title="Anexar">
                       <Paperclip className="h-4 w-4" />
-                    </BTN>
+                    </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-48">
                     <DropdownMenuItem onClick={() => imageInputRef.current?.click()}>
