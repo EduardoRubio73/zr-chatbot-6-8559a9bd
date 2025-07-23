@@ -50,6 +50,67 @@ export default function ZRChatSupabase() {
     }
   }, []);
 
+  // Load IARA messages function
+  const loadIaraMessages = async (conversationId: string) => {
+    if (!conversationId.startsWith('iara_') || !user) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('n8n_conversations')
+        .select('message')
+        .eq('session_id', conversationId)
+        .order('id', { ascending: true });
+
+      if (error) {
+        console.error('Erro ao carregar mensagens da IARA:', error);
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar mensagens anteriores da IARA",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (data && data.length > 0) {
+        const formattedMessages = data.map((item: any, index: number) => {
+          const message = item.message;
+          const isUserMessage = message.user_id === user.id;
+          return {
+            id: `${conversationId}_${index}`,
+            text: isUserMessage ? message.message : (message.output || message.content || message.response || message.text || message.message || "Mensagem recebida"),
+            sender: isUserMessage ? "me" : "other",
+            timestamp: new Date(message.timestamp || Date.now()).toLocaleTimeString('pt-BR', {
+              hour: '2-digit',
+              minute: '2-digit'
+            }),
+            read: true,
+            sender_name: isUserMessage ? (profile?.name || user.email) : "IARA",
+            sender_avatar: isUserMessage
+              ? (profile?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.name || user.email)}&background=25D366&color=fff`)
+              : `https://ui-avatars.com/api/?name=IARA&background=FF6B6B&color=fff`
+          };
+        });
+
+        setMessages(formattedMessages);
+      } else {
+        setMessages([]);
+      }
+    } catch (error) {
+      console.error('Erro inesperado ao carregar mensagens da IARA:', error);
+      toast({
+        title: "Erro",
+        description: "Erro inesperado ao carregar mensagens da IARA",
+        variant: "destructive"
+      });
+      setMessages([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Optimistic message update
   const addOptimisticMessage = useCallback((message) => {
     const optimisticMessage = {
@@ -86,7 +147,12 @@ export default function ZRChatSupabase() {
 
   useEffect(() => {
     if (selectedConversation) {
-      loadMessages(selectedConversation.id);
+      // Check if it's an IARA conversation
+      if (selectedConversation.id.startsWith('iara_')) {
+        loadIaraMessages(selectedConversation.id);
+      } else {
+        loadMessages(selectedConversation.id);
+      }
     }
   }, [selectedConversation]);
 
@@ -107,7 +173,7 @@ export default function ZRChatSupabase() {
             id,
             is_group,
             last_message_at,
-            status,
+            is_archived,
             groups (
               name,
               avatar_url
@@ -115,7 +181,7 @@ export default function ZRChatSupabase() {
           )
         `)
         .eq('user_id', user.id)
-        .eq('conversations.status', true); // Apenas conversas ativas
+        .eq('conversations.is_archived', false); // Apenas conversas ativas
 
       if (participantsError) {
         console.log('Erro ao buscar conversas:', participantsError);
@@ -175,6 +241,19 @@ export default function ZRChatSupabase() {
           }
         }
       }
+
+      // Add IARA conversation as special case
+      realConversations.unshift({
+        id: `iara_${user.id}`,
+        name: "IARA",
+        avatar: "https://ui-avatars.com/api/?name=IARA&background=FF6B6B&color=fff",
+        lastMessage: "Assistente virtual inteligente",
+        timestamp: "agora",
+        unreadCount: 0,
+        isOnline: true,
+        isGroup: false,
+        isIara: true
+      });
 
       // Buscar todos os usuários para criar opções de novas conversas
       const { data: allUsers, error: usersError } = await supabase
@@ -405,7 +484,11 @@ export default function ZRChatSupabase() {
       });
 
       // Recarregar as mensagens da conversa atual
-      await loadMessages(selectedConversation.id);
+      if (selectedConversation.id.startsWith('iara_')) {
+        await loadIaraMessages(selectedConversation.id);
+      } else {
+        await loadMessages(selectedConversation.id);
+      }
       
       toast({
         title: "Sucesso",
@@ -440,12 +523,12 @@ export default function ZRChatSupabase() {
           conversations!inner(
             id,
             is_group,
-            status
+            is_archived
           )
         `)
         .eq('user_id', user.id)
         .eq('conversations.is_group', false)  
-        .eq('conversations.status', true);
+        .eq('conversations.is_archived', false);
 
       if (myConversationsError) {
         console.error('❌ Erro ao buscar minhas conversas:', myConversationsError);
@@ -478,7 +561,7 @@ export default function ZRChatSupabase() {
         .from('conversations')
         .insert({
           is_group: false,
-          status: true
+          is_archived: false
         })
         .select('*')
         .single();
@@ -809,10 +892,10 @@ export default function ZRChatSupabase() {
   const handleArchiveConversation = useCallback(async (conversationId: string) => {
     try {
       // Se é uma conversa nova (não existe no banco), não fazer nada
-      if (conversationId.startsWith('new-')) {
+      if (conversationId.startsWith('new-') || conversationId.startsWith('iara_')) {
         toast({
           title: "Aviso",
-          description: "Não é possível arquivar uma conversa que ainda não foi iniciada.",
+          description: "Não é possível arquivar esta conversa.",
           variant: "default",
         });
         return;
@@ -824,7 +907,7 @@ export default function ZRChatSupabase() {
       // Buscar a conversa real no banco de dados
       const { data: conversation, error: findError } = await supabase
         .from('conversations')
-        .select('id, status')
+        .select('id, is_archived')
         .eq('id', conversationId)
         .maybeSingle(); // Usar maybeSingle em vez de single
 
@@ -848,12 +931,12 @@ export default function ZRChatSupabase() {
       // Arquivar conversa existente
       const { data: updatedConversation, error: updateError } = await supabase
         .from('conversations')
-        .update({ status: false } as any)
+        .update({ is_archived: true })
         .eq('id', conversation.id)
         .select(); // ✔ Adicionar select() para confirmar persistência
 
       if (updateError) {
-        console.error('Erro no update do status:', updateError);
+        console.error('Erro no update do is_archived:', updateError);
         throw updateError;
       }
 
@@ -898,7 +981,7 @@ export default function ZRChatSupabase() {
   const handleDeleteConversation = useCallback(async (conversationId: string) => {
     try {
       // Se é uma conversa nova (não existe no banco), apenas remover da lista local
-      if (conversationId.startsWith('new-')) {
+      if (conversationId.startsWith('new-') || conversationId.startsWith('iara_')) {
         setConversations(prev => prev.filter(conv => conv.id !== conversationId));
         
         if (selectedConversation?.id === conversationId) {
@@ -1017,7 +1100,7 @@ export default function ZRChatSupabase() {
     <div 
       className={`h-screen w-full flex ${darkMode ? 'dark bg-gray-900 text-white' : 'bg-white text-black'}`}
       style={{
-        backgroundImage: `url('${whatsappBackground}')}`,
+        backgroundImage: `url('${whatsappBackground}')`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
@@ -1184,7 +1267,7 @@ export default function ZRChatSupabase() {
                     <div className={`${msg.sender === "me" ? "message-right" : "message-left"} ${
                       msg.isOptimistic ? 'opacity-70' : ''
                     }`}>
-                      {msg.message}
+                      {msg.message || msg.text}
                       {msg.image_url && (
                         <img 
                           src={msg.image_url} 
@@ -1205,9 +1288,9 @@ export default function ZRChatSupabase() {
                         </video>
                       )}
                       <span className="message-status">
-                        {formatTime(msg.created_at)}
+                        {formatTime(msg.created_at) || msg.timestamp}
                         {msg.sender === "me" && (
-                          msg.isRead ? (
+                          msg.isRead || msg.read ? (
                             <CheckCheck size={14} className="text-[#4A90E2]" />
                           ) : (
                             <Check size={14} className="text-[#4A90E2]" />
