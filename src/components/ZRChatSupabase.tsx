@@ -173,7 +173,7 @@ export default function ZRChatSupabase() {
             id,
             is_group,
             last_message_at,
-            is_archived,
+            status,
             groups (
               name,
               avatar_url
@@ -181,7 +181,7 @@ export default function ZRChatSupabase() {
           )
         `)
         .eq('user_id', user.id)
-        .eq('conversations.is_archived', false); // Apenas conversas ativas
+        .eq('conversations.status', true); // Apenas conversas ativas
 
       if (participantsError) {
         console.log('Erro ao buscar conversas:', participantsError);
@@ -523,12 +523,12 @@ export default function ZRChatSupabase() {
           conversations!inner(
             id,
             is_group,
-            is_archived
+            status
           )
         `)
         .eq('user_id', user.id)
         .eq('conversations.is_group', false)  
-        .eq('conversations.is_archived', false);
+        .eq('conversations.status', true);
 
       if (myConversationsError) {
         console.error('❌ Erro ao buscar minhas conversas:', myConversationsError);
@@ -561,7 +561,7 @@ export default function ZRChatSupabase() {
         .from('conversations')
         .insert({
           is_group: false,
-          is_archived: false
+          status: true
         })
         .select('*')
         .single();
@@ -907,7 +907,7 @@ export default function ZRChatSupabase() {
       // Buscar a conversa real no banco de dados
       const { data: conversation, error: findError } = await supabase
         .from('conversations')
-        .select('id, is_archived')
+        .select('id, status')
         .eq('id', conversationId)
         .maybeSingle(); // Usar maybeSingle em vez de single
 
@@ -931,12 +931,12 @@ export default function ZRChatSupabase() {
       // Arquivar conversa existente
       const { data: updatedConversation, error: updateError } = await supabase
         .from('conversations')
-        .update({ is_archived: true })
+        .update({ status: false })
         .eq('id', conversation.id)
         .select(); // ✔ Adicionar select() para confirmar persistência
 
       if (updateError) {
-        console.error('Erro no update do is_archived:', updateError);
+        console.error('Erro no update do status:', updateError);
         throw updateError;
       }
 
