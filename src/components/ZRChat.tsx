@@ -1184,4 +1184,326 @@ export default function ZRChat() {
   };
 
   const emojiCategories = {
-    'Rostos': ['😀', '😃', '😄', '😁', '😆', '🥹', '😅', '😂', '🤣', '🥲', '☺️', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨',
+    'Rostos': ['😀', '😃', '😄', '😁', '😆', '🥹', '😅', '😂', '🤣', '🥲', '☺️', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🥸', '🤩', '🥳'],
+    'Gestos': ['👍', '👎', '👌', '🤌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👋', '🤚', '🖐️', '✋', '🖖', '👏', '🙌', '🤲', '🤝', '🙏'],
+    'Corações': ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝'],
+    'Símbolos': ['💯', '🔥', '✨', '⭐', '🌟', '💫', '⚡', '💥', '💢', '💨', '💦', '💤', '🎉', '🎊', '🎈', '🎁', '🏆', '🥇', '🥈', '🥉']
+  };
+
+  if (!user) {
+    return null;
+  }
+
+  return (
+    <div className={`h-screen w-full flex ${darkMode ? 'dark bg-gray-900 text-white' : 'bg-white text-black'}`}>
+      <input type="file" ref={imageInputRef} className="hidden" accept="image/*" onChange={e => {
+        const file = e.target.files?.[0];
+        if (file) handleMediaUpload(file, 'image');
+      }} />
+      <input type="file" ref={videoInputRef} className="hidden" accept="video/*" onChange={e => {
+        const file = e.target.files?.[0];
+        if (file) handleMediaUpload(file, 'video');
+      }} />
+      <input type="file" ref={documentInputRef} className="hidden" accept=".pdf,.doc,.docx,.txt,.xls,.xlsx,.ppt,.pptx" onChange={e => {
+        const file = e.target.files?.[0];
+        if (file) handleMediaUpload(file, 'document');
+      }} />
+      <input type="file" ref={fileInputRef} className="hidden" accept="*/*" onChange={e => {
+        const file = e.target.files?.[0];
+        if (file) {
+          const fileType = file.type;
+          let category: 'image' | 'audio' | 'video' | 'document' = 'document';
+          if (fileType.startsWith('image/')) {
+            category = 'image';
+          } else if (fileType.startsWith('video/')) {
+            category = 'video';
+          } else if (fileType.startsWith('audio/')) {
+            category = 'audio';
+          }
+          handleMediaUpload(file, category);
+        }
+      }} />
+
+      {/* Sidebar */}
+      <aside className={`${isMobile ? showSidebar ? 'w-full' : 'hidden' : 'w-80'} ${!isMobile ? 'border-r border-border' : ''} flex flex-col bg-background`}>
+        <div className="p-4 border-b border-border">
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-xl font-semibold text-foreground">
+              {showArchivedConversations ? 'Conversas Arquivadas' : 'ZRChat'}
+            </h1>
+            <div className="flex gap-1">
+              {showArchivedConversations && (
+                <Button variant="ghost" size="icon" onClick={() => setShowArchivedConversations(false)} title="Voltar">
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              )}
+              <Button variant="ghost" size="icon" onClick={() => navigate('/profile')} title="Perfil">
+                <User className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => setDarkMode(!darkMode)}>
+                {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </Button>
+              <DropdownMenu open={showArchivedMenu} onOpenChange={setShowArchivedMenu}>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" title="Menu">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56">
+                  <DropdownMenuItem onClick={handleArchivedConversationsClick}>
+                    <Archive className="mr-2 h-4 w-4" />
+                    Conversas Arquivadas ({archivedConversations.length})
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button variant="ghost" size="icon" onClick={handleLogout} title="Sair">
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Pesquisar conversas..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-10" />
+          </div>
+        </div>
+
+        <div className="p-4 border-b border-border bg-muted/30">
+          <div className="flex items-center gap-3">
+            <Avatar className="h-10 w-10">
+              <AvatarImage src={profile?.avatar_url} />
+              <AvatarFallback>
+                {profile?.name?.split(' ').map(n => n[0]).join('') || 'U'}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-medium text-foreground truncate">
+                {profile?.name || 'Usuário'}
+              </h3>
+              <p className="text-sm text-muted-foreground truncate">
+                {user.email}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {filteredConversations.map(conv => (
+            <div
+              key={conv.id}
+              className={`p-4 border-b border-border cursor-pointer hover:bg-muted/50 transition-colors ${selectedConversation?.id === conv.id ? 'bg-muted' : ''}`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="relative" onClick={e => {
+                  e.stopPropagation();
+                  handleAvatarClick(conv);
+                }}>
+                  <Avatar className="h-12 w-12 cursor-pointer">
+                    <AvatarImage src={conv.avatar} alt={conv.name} />
+                    <AvatarFallback>{conv.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                  </Avatar>
+                  {conv.isOnline && (
+                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-background"></div>
+                  )}
+                  {conv.isIARA && (
+                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
+                      <span className="text-xs text-white font-bold">AI</span>
+                    </div>
+                  )}
+                  {conv.unreadCount > 0 && !conv.isIARA && (
+                    <div className="unread-badge">
+                      {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0" onClick={() => handleConversationClick(conv)}>
+                  <div className="flex justify-between items-start">
+                    <h3 className="font-medium text-foreground truncate">
+                      {conv.name}
+                      {conv.isGroup && <span className="ml-1 text-xs">👥</span>}
+                    </h3>
+                    <span className="text-xs text-muted-foreground">{conv.timestamp}</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground truncate">{conv.lastMessage}</p>
+                </div>
+                {conv.unreadCount > 0 && (
+                  <Badge className="bg-green-500 text-white rounded-full min-w-[20px] h-5 text-xs">
+                    {conv.unreadCount}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </aside>
+
+      <main className={`${isMobile ? showSidebar ? 'hidden' : 'w-full' : 'flex-1'} flex flex-col bg-background`}>
+        {selectedConversation && (
+          <>
+            <header className="p-4 border-b border-border bg-background/80 backdrop-blur-sm">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  {isMobile && (
+                    <Button variant="ghost" size="icon" onClick={handleBackToList}>
+                      <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                  )}
+                  <Avatar className="h-10 w-10" onClick={() => handleAvatarClick(selectedConversation)}>
+                    <AvatarImage src={selectedConversation.avatar} alt={selectedConversation.name} />
+                    <AvatarFallback>{selectedConversation.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <h2 className="font-semibold text-foreground">
+                      {selectedConversation.name}
+                      {selectedConversation.isIARA}
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedConversation.isOnline ? 'online' : 'última vez hoje às 14:30'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="icon" title="Chamada de voz" onClick={() => handleCall('voice')}>
+                    <Phone className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" title={isRecording ? "Parar gravação de vídeo" : "Gravar vídeo"} onClick={isRecording ? stopVideoRecording : startVideoRecording} className={isRecording ? "text-red-500" : ""}>
+                    <Video className="h-4 w-4" />
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" title="Menu" disabled={loading}>
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-56">
+                      <DropdownMenuItem onClick={() => handleArchiveConversation(selectedConversation.id)} disabled={loading}>
+                        <Archive className="mr-2 h-4 w-4" />
+                        Arquivar
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleUnarchiveConversation(selectedConversation.id)} disabled={loading || !selectedConversation.is_archived}>
+                        <Archive className="mr-2 h-4 w-4" />
+                        Desarquivar
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDeleteConversation(selectedConversation.id)} disabled={loading}>
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Excluir conversa
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            </header>
+
+            <section className={`chat-body flex-1 overflow-y-auto px-4 py-2 space-y-2 ${selectedConversation.isIARA ? 'chat-bg-iara' : 'whatsapp-bg'}`}>
+              <div className="py-4 flex flex-col gap-2">
+                {messages.map(msg => (
+                  <MessageBubble
+                    key={msg.id}
+                    message={{
+                      id: msg.id,
+                      message: msg.text,
+                      sent_at: msg.sent_at || msg.timestamp,
+                      is_read: msg.read || msg.is_read,
+                      sender: msg.sender,
+                      image_url: msg.image_url,
+                      audio_url: msg.audio_url,
+                      video_url: msg.video_url
+                    }}
+                    onMessageDeleted={messageId => {
+                      setMessages(prev => prev.filter(m => m.id !== messageId));
+                    }}
+                  />
+                ))}
+                <div ref={messagesEndRef} />
+              </div>
+            </section>
+
+            <footer className="p-4 border-t border-border bg-background">
+              <div className="flex items-center gap-2">
+                <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" size="icon" title="Emoji">
+                      <Smile className="h-4 w-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 p-4">
+                    <div className="space-y-4">
+                      {Object.entries(emojiCategories).map(([category, emojis]) => (
+                        <div key={category}>
+                          <h4 className="text-sm font-medium mb-2">{category}</h4>
+                          <div className="grid grid-cols-8 gap-2">
+                            {emojis.map(emoji => (
+                              <Button
+                                key={emoji}
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-lg hover:bg-muted"
+                                onClick={() => handleEmojiSelect(emoji)}
+                              >
+                                {emoji}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                <DropdownMenu open={showAttachmentMenu} onOpenChange={setShowAttachmentMenu}>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" title="Anexar">
+                      <Paperclip className="h-4 w-4" />
+                    </BTN>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-48">
+                    <DropdownMenuItem onClick={() => imageInputRef.current?.click()}>
+                      <Image className="mr-2 h-4 w-4" />
+                      Foto
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => videoInputRef.current?.click()}>
+                      <Camera className="mr-2 h-4 w-4" />
+                      Vídeo
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => documentInputRef.current?.click()}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      Documento
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                      <File className="mr-2 h-4 w-4" />
+                      Arquivo
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <div className="flex-1">
+                  <Input
+                    ref={inputRef}
+                    value={newMessage}
+                    onChange={e => setNewMessage(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Digite uma mensagem"
+                    className="border-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                    disabled={loading}
+                  />
+                </div>
+                <Button
+                  size="icon"
+                  onClick={newMessage.trim() ? handleSend : handleMicClick}
+                  className={`${newMessage.trim() ? "bg-[#25D366] hover:bg-[#20b456]" : isRecording ? "bg-red-500 hover:bg-red-600" : "bg-[#25D366] hover:bg-[#20b456]"} text-white transition-colors`}
+                  disabled={loading}
+                  title={newMessage.trim() ? "Enviar" : isRecording ? "Parar gravação" : "Gravar áudio"}
+                >
+                  {newMessage.trim() ? <Send className="h-4 w-4" /> : <Mic className={`h-4 w-4 ${isRecording ? 'animate-pulse' : ''}`} />}
+                </Button>
+              </div>
+            </footer>
+          </>
+        )}
+      </main>
+
+      <UserProfileModal
+        isOpen={showUserProfileModal}
+        onClose={() => setShowUserProfileModal(false)}
+        user={selectedUserProfile}
+      />
+    </div>
+  );
+}
