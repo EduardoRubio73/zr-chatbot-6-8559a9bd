@@ -1,3 +1,4 @@
+
 import React, {
   useState,
   useEffect,
@@ -482,13 +483,13 @@ const ZRChat = () => {
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <Avatar className="h-10 w-10">
-              <AvatarImage src={user?.avatar_url} alt={user?.name} />
+              <AvatarImage src={user?.user_metadata?.avatar_url} alt={user?.user_metadata?.name} />
               <AvatarFallback>
-                {user?.name?.charAt(0).toUpperCase()}
+                {user?.user_metadata?.name?.charAt(0).toUpperCase()}
               </AvatarFallback>
             </Avatar>
             <div>
-              <h1 className="font-semibold text-gray-900">{user?.name}</h1>
+              <h1 className="font-semibold text-gray-900">{user?.user_metadata?.name}</h1>
               <p className="text-sm text-gray-500">Online</p>
             </div>
           </div>
@@ -563,11 +564,19 @@ const ZRChat = () => {
         {selectedConversation ? (
           <>
             <ChatHeader
-              conversation={conversations.find(c => c.id === selectedConversation)}
-              onUserClick={(user) => {
+              selectedConversation={conversations.find(c => c.id === selectedConversation)}
+              isMobile={false}
+              onBackToList={() => setSelectedConversation(null)}
+              onAvatarClick={(user) => {
                 setProfileUser(user);
                 setShowProfileModal(true);
               }}
+              onCall={(type) => console.log('Call:', type)}
+              onArchiveConversation={() => toggleArchiveConversation(selectedConversation, true)}
+              onDeleteConversation={() => console.log('Delete conversation')}
+              isRecording={isRecording}
+              onVideoRecording={() => setIsRecording(!isRecording)}
+              onRefreshConversation={() => refetchMessages()}
             />
             <ChatMessages
               conversationId={selectedConversation}
@@ -641,8 +650,12 @@ const ZRChat = () => {
           setShowProfileModal(false);
           setProfileUser(null);
         }}
-        user={profileUser || user}
-        isOwnProfile={!profileUser}
+        user={profileUser || {
+          id: user?.id || '',
+          name: user?.user_metadata?.name || '',
+          avatar: user?.user_metadata?.avatar_url || '',
+          isOnline: true
+        }}
       />
 
       {/* Hidden file inputs */}
