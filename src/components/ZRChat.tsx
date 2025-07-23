@@ -588,32 +588,292 @@ export default function ZRChat() {
       setLoading(false);
     }
   };
-  const handleArchiveConversation = (conversationId: string) => {
+  const handleArchiveConversation = async (conversationId: string) => {
+    console.log('=== INICIANDO ARQUIVAMENTO ===');
+    console.log('Conversation ID:', conversationId);
+    
+    if (!user) {
+      console.error('Usuário não autenticado');
+      toast({
+        title: "Erro",
+        description: "Usuário não autenticado",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Encontrar a conversa
     const conversation = conversations.find(conv => conv.id === conversationId);
-    if (conversation) {
+    if (!conversation) {
+      console.error('Conversa não encontrada:', conversationId);
+      toast({
+        title: "Erro",
+        description: "Conversa não encontrada",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Não permitir arquivar IARA
+    if (conversation.isIARA) {
+      toast({
+        title: "Ação não permitida",
+        description: "Não é possível arquivar a conversa com IARA",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setLoading(true);
+    
+    try {
+      // Para conversas que ainda não estão no banco (mock conversations)
+      if (conversationId.startsWith('conv_')) {
+        console.log('Arquivando conversa mock (não existe no banco)');
+        
+        // Mover da lista normal para arquivada
+        setArchivedConversations(prev => [...prev, conversation]);
+        setConversations(prev => prev.filter(conv => conv.id !== conversationId));
+        
+        // Limpar seleção se for a conversa atual
+        if (selectedConversation?.id === conversationId) {
+          setSelectedConversation(null);
+        }
+        
+        toast({
+          title: "Conversa arquivada",
+          description: `Conversa com ${conversation.name} foi arquivada`
+        });
+        return;
+      }
+
+      console.log('Verificando participação do usuário...');
+      
+      // Verificar se o usuário participa da conversa
+      const { data: participantData, error: participantError } = await supabase
+        .from('participants')
+        .select('id')
+        .eq('conversation_id', conversationId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (participantError) {
+        console.error('Erro ao verificar participação:', participantError);
+        toast({
+          title: "Erro",
+          description: "Erro ao verificar participação na conversa",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (!participantData) {
+        console.error('Usuário não participa da conversa');
+        toast({
+          title: "Erro",
+          description: "Você não participa desta conversa",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log('Arquivando conversa do banco...');
+      
+      // Simular arquivamento removendo da lista (na realidade você adicionaria uma flag 'archived')
       setArchivedConversations(prev => [...prev, conversation]);
       setConversations(prev => prev.filter(conv => conv.id !== conversationId));
+      
+      // Limpar seleção se for a conversa atual
       if (selectedConversation?.id === conversationId) {
         setSelectedConversation(null);
       }
+      
       toast({
         title: "Conversa arquivada",
         description: `Conversa com ${conversation.name} foi arquivada`
       });
+      
+    } catch (error) {
+      console.error('Erro inesperado ao arquivar conversa:', error);
+      toast({
+        title: "Erro",
+        description: "Erro inesperado ao arquivar conversa",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
   };
-  const handleDeleteConversation = (conversationId: string) => {
-    const conversation = conversations.find(conv => conv.id === conversationId) || archivedConversations.find(conv => conv.id === conversationId);
-    if (conversation) {
+  const handleDeleteConversation = async (conversationId: string) => {
+    console.log('=== INICIANDO EXCLUSÃO ===');
+    console.log('Conversation ID:', conversationId);
+    
+    if (!user) {
+      console.error('Usuário não autenticado');
+      toast({
+        title: "Erro",
+        description: "Usuário não autenticado",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Encontrar a conversa
+    const conversation = conversations.find(conv => conv.id === conversationId) || 
+                       archivedConversations.find(conv => conv.id === conversationId);
+    
+    if (!conversation) {
+      console.error('Conversa não encontrada:', conversationId);
+      toast({
+        title: "Erro",
+        description: "Conversa não encontrada",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Não permitir excluir IARA
+    if (conversation.isIARA) {
+      toast({
+        title: "Ação não permitida",
+        description: "Não é possível excluir a conversa com IARA",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setLoading(true);
+    
+    try {
+      // Para conversas que ainda não estão no banco (mock conversations)
+      if (conversationId.startsWith('conv_')) {
+        console.log('Excluindo conversa mock (não existe no banco)');
+        
+        // Remover das listas
+        setConversations(prev => prev.filter(conv => conv.id !== conversationId));
+        setArchivedConversations(prev => prev.filter(conv => conv.id !== conversationId));
+        
+        // Limpar seleção se for a conversa atual
+        if (selectedConversation?.id === conversationId) {
+          setSelectedConversation(null);
+        }
+        
+        toast({
+          title: "Conversa excluída",
+          description: `Conversa com ${conversation.name} foi excluída`
+        });
+        return;
+      }
+
+      console.log('Verificando participação do usuário...');
+      
+      // Verificar se o usuário participa da conversa
+      const { data: participantData, error: participantError } = await supabase
+        .from('participants')
+        .select('id')
+        .eq('conversation_id', conversationId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (participantError) {
+        console.error('Erro ao verificar participação:', participantError);
+        toast({
+          title: "Erro",
+          description: "Erro ao verificar participação na conversa",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (!participantData) {
+        console.error('Usuário não participa da conversa');
+        toast({
+          title: "Erro",
+          description: "Você não participa desta conversa",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log('Excluindo mensagens...');
+      
+      // Primeiro, excluir todas as mensagens da conversa
+      const { error: messagesError } = await supabase
+        .from('messages')
+        .delete()
+        .eq('conversation_id', conversationId);
+
+      if (messagesError) {
+        console.error('Erro ao excluir mensagens:', messagesError);
+        toast({
+          title: "Erro",
+          description: "Erro ao excluir mensagens da conversa",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log('Excluindo participantes...');
+      
+      // Depois, excluir todos os participantes
+      const { error: participantsError } = await supabase
+        .from('participants')
+        .delete()
+        .eq('conversation_id', conversationId);
+
+      if (participantsError) {
+        console.error('Erro ao excluir participantes:', participantsError);
+        toast({
+          title: "Erro",
+          description: "Erro ao excluir participantes da conversa",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log('Excluindo conversa...');
+      
+      // Por fim, excluir a conversa
+      const { error: conversationError } = await supabase
+        .from('conversations')
+        .delete()
+        .eq('id', conversationId);
+
+      if (conversationError) {
+        console.error('Erro ao excluir conversa:', conversationError);
+        toast({
+          title: "Erro",
+          description: "Erro ao excluir conversa do banco de dados",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log('Conversa excluída com sucesso');
+      
+      // Remover das listas no frontend
       setConversations(prev => prev.filter(conv => conv.id !== conversationId));
       setArchivedConversations(prev => prev.filter(conv => conv.id !== conversationId));
+      
+      // Limpar seleção se for a conversa atual
       if (selectedConversation?.id === conversationId) {
         setSelectedConversation(null);
       }
+      
       toast({
         title: "Conversa excluída",
-        description: `Conversa com ${conversation.name} foi excluída`
+        description: `Conversa com ${conversation.name} foi excluída permanentemente`
       });
+      
+    } catch (error) {
+      console.error('Erro inesperado ao excluir conversa:', error);
+      toast({
+        title: "Erro",
+        description: "Erro inesperado ao excluir conversa",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
   };
   const handleMediaUpload = async (file: File, type: 'image' | 'audio' | 'video' | 'document') => {
@@ -1082,16 +1342,16 @@ export default function ZRChat() {
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" title="Menu">
+                      <Button variant="ghost" size="icon" title="Menu" disabled={loading}>
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="w-56">
-                      <DropdownMenuItem onClick={() => handleArchiveConversation(selectedConversation.id)}>
+                      <DropdownMenuItem onClick={() => handleArchiveConversation(selectedConversation.id)} disabled={loading}>
                         <Archive className="mr-2 h-4 w-4" />
                         Arquivar
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleDeleteConversation(selectedConversation.id)}>
+                      <DropdownMenuItem onClick={() => handleDeleteConversation(selectedConversation.id)} disabled={loading}>
                         <Trash2 className="mr-2 h-4 w-4" />
                         Excluir conversa
                       </DropdownMenuItem>
